@@ -1,4 +1,4 @@
-const { convertProfileToVector } = require('./vectors');
+const { convertProfileToVector } = require('./vector');
 const { calculatingCosineSimilarity } = require('./similarity');
 
 function getMatches(myProfile, arrayOfPeerProfiles) {
