@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { loadProfile, saveProfile, clearProfile } from '../lib/db'
+import { getProfile, saveProfile, deleteProfile } from '../lib/db'
 
 const AuthContext = createContext(null)
 
@@ -8,18 +8,19 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const profile = loadProfile()
-    if (profile) setUser(profile)
-    setLoading(false)
+    getProfile().then(profile => {
+      if (profile) setUser(profile)
+      setLoading(false)
+    })
   }, [])
 
-  function login(profile) {
-    saveProfile(profile)
+  async function login(profile) {
+    await saveProfile(profile)
     setUser(profile)
   }
 
-  function logout() {
-    clearProfile()
+  async function logout() {
+    await deleteProfile()
     setUser(null)
   }
 

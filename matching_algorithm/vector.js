@@ -57,34 +57,21 @@ const CATEGORY_WEIGHTS = {
 
 function convertProfileToVector(profile) {
     var fullVector = [];
+    var iv = profile.interestVector || {};
 
 
     // GENRE
 
     for (var i = 0; i < GENRE_TAGS.length; i++) {
-        var currentGenreTag = GENRE_TAGS[i];
-        var userGenreValue = 0;
-
-        if (profile.tags.genre[currentGenreTag] !== undefined) {
-            userGenreValue = profile.tags.genre[currentGenreTag];
-        }
-
-        var weightedGenreValue = userGenreValue * CATEGORY_WEIGHTS.genre;
-        fullVector.push(weightedGenreValue)
+        var weightedGenreValue = (iv[GENRE_TAGS[i]] || 0) * CATEGORY_WEIGHTS.genre;
+        fullVector.push(weightedGenreValue);
     }
 
 
     // ERA
 
     for (var i = 0; i < ERA_TAGS.length; i++) {
-        var currentEraTag = ERA_TAGS[i];
-        var userEraValue = 0;
-
-        if (profile.tags.era[currentEraTag] !== undefined) {
-            userEraValue = profile.tags.era[currentEraTag];
-        }
-
-        var weightedEraValue = userEraValue * CATEGORY_WEIGHTS.era;
+        var weightedEraValue = (iv[ERA_TAGS[i]] || 0) * CATEGORY_WEIGHTS.era;
         fullVector.push(weightedEraValue);
     }
 
@@ -92,48 +79,27 @@ function convertProfileToVector(profile) {
     // RATING
 
     for (var i = 0; i < RATING_TAGS.length; i++) {
-        var currentRatingTag = RATING_TAGS[i];
-        var userRatingValue = 0;
-
-        if (profile.tags.rating[currentRatingTag] !== undefined) {
-            userRatingValue = profile.tags.rating[currentRatingTag];
-        }
-
-        var weightedRatingValue = userRatingValue * CATEGORY_WEIGHTS.rating;
+        var weightedRatingValue = (iv[RATING_TAGS[i]] || 0) * CATEGORY_WEIGHTS.rating;
         fullVector.push(weightedRatingValue);
     }
 
-    
+
     // RUNTIME
 
     for (var i = 0; i < RUNTIME_TAGS.length; i++) {
-        var currentRuntimeTag = RUNTIME_TAGS[i];
-        var userRuntimeValue = 0;
-
-        if (profile.tags.runtime[currentRuntimeTag] !== undefined) {
-            userRuntimeValue = profile.tags.runtime[currentRuntimeTag];
-        }
-
-        var weightedRuntimeValue = userRuntimeValue * CATEGORY_WEIGHTS.runtime;
+        var weightedRuntimeValue = (iv[RUNTIME_TAGS[i]] || 0) * CATEGORY_WEIGHTS.runtime;
         fullVector.push(weightedRuntimeValue);
     }
+
 
     // LANGUAGE
 
     for (var i = 0; i < LANGUAGE_TAGS.length; i++) {
-        var currentLanguageTag = LANGUAGE_TAGS[i];
-        var userLanguageValue = 0;
-
-        if (profile.tags.language[currentLanguageTag] !== undefined) {
-            userLanguageValue = profile.tags.language[currentLanguageTag];
-        }
-
-        var weightedLanguageValue = userLanguageValue * CATEGORY_WEIGHTS.language;
+        var weightedLanguageValue = (iv[LANGUAGE_TAGS[i]] || 0) * CATEGORY_WEIGHTS.language;
         fullVector.push(weightedLanguageValue);
     }
 
-    return fullVector
-
+    return fullVector;
 }
 
 module.exports = {

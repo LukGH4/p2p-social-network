@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { emptyTags, tagsToProfile, profileToTags } from '../schema/interestSchema'
+import { emptyTags, profileToTags, INTEREST_SCHEMA } from '../schema/interestSchema'
 import { broadcastProfile } from '../lib/gossipBridge'
+import { createProfile } from '../lib/profile'
 import InterestTagSelector from '../components/InterestTagSelector'
 
 export default function ProfileCreate() {
@@ -11,8 +12,13 @@ export default function ProfileCreate() {
 
   const [username, setUsername] = useState(user?.username || '')
   const [bio, setBio] = useState(user?.bio || '')
-  const [selected, setSelected] = useState(user?.tags ? profileToTags(user.tags) : emptyTags())
+  const [selected, setSelected] = useState(
+    user?.interestVector
+      ? profileToTags(flatVectorToNestedTags(user.interestVector))
+      : emptyTags()
+  )
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   function toggleTag(category, tag) {
     setSelected(prev => {
@@ -28,21 +34,24 @@ export default function ProfileCreate() {
     return Object.values(selected).reduce((sum, arr) => sum + arr.length, 0)
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!username.trim()) { setError('Please enter a username.'); return }
     if (totalSelected() < 3) { setError('Select at least 3 tags so we can match you.'); return }
 
-    const profile = {
-      peerId: user?.peerId || crypto.randomUUID(),
-      username: username.trim(),
-      bio: bio.trim(),
-      tags: tagsToProfile(selected),
+    setSaving(true)
+    try {
+      const peerId = user?.peerId || crypto.randomUUID()
+      const signed = await createProfile({ username, bio, selectedTags: selected }, peerId)
+      await login(signed)
+      broadcastProfile(signed)
+      navigate('/feed', { replace: true })
+    } catch (err) {
+      console.error('Failed to create profile:', err)
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setSaving(false)
     }
-
-    login(profile)
-    broadcastProfile(profile)
-    navigate('/feed', { replace: true })
   }
 
   return (
@@ -85,11 +94,23 @@ export default function ProfileCreate() {
               Cancel
             </button>
           )}
-          <button type="submit" className="btn-primary">
-            {user ? 'Save' : 'Find My Peers'}
+          <button type="submit" className="btn-primary" disabled={saving}>
+            {saving ? 'Saving…' : user ? 'Save' : 'Find My Peers'}
           </button>
         </div>
       </form>
     </div>
   )
+}
+
+// Convert flat interestVector back to nested tag structure for pre-populating the tag selector on edit
+function flatVectorToNestedTags(interestVector) {
+  const nested = {}
+  for (const [category, { tags }] of Object.entries(INTEREST_SCHEMA)) {
+    nested[category] = {}
+    for (const tag of Object.keys(tags)) {
+      if (interestVector[tag] === 1) nested[category][tag] = 1
+    }
+  }
+  return nested
 }
