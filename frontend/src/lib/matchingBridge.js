@@ -15,7 +15,7 @@ function toVector(profile) {
   const vec = []
   for (const [cat, tags] of Object.entries(TAG_ORDER)) {
     for (const tag of tags) {
-      vec.push((profile.interestVector?.[tag] ?? 0) * WEIGHTS[cat])
+      vec.push((profile.tags?.[cat]?.[tag] ?? 0) * WEIGHTS[cat])
     }
   }
   return vec
@@ -36,7 +36,7 @@ function cosine(a, b) {
 export function getMatches(myProfile, peers) {
   const myVec = toVector(myProfile)
   return peers
-    .filter(p => p.interestVector && p.peerId !== myProfile.peerId)
+    .filter(p => p.tags && p.peerId !== myProfile.peerId)
     .map(p => ({ ...p, score: cosine(myVec, toVector(p)) }))
     .sort((a, b) => b.score - a.score)
 }

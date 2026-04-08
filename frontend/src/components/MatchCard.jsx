@@ -1,12 +1,10 @@
 import { INTEREST_SCHEMA } from '../schema/interestSchema'
 
-// Returns display labels for tags present in both flat interestVectors.
-function sharedTags(myVector, peerVector) {
-  if (!myVector || !peerVector) return []
+function sharedTags(myTags, peerTags) {
   const shared = []
-  for (const { tags } of Object.values(INTEREST_SCHEMA)) {
+  for (const [cat, { tags }] of Object.entries(INTEREST_SCHEMA)) {
     for (const [key, label] of Object.entries(tags)) {
-      if (myVector[key] === 1 && peerVector[key] === 1) {
+      if (myTags?.[cat]?.[key] && peerTags?.[cat]?.[key]) {
         shared.push(label)
       }
     }
@@ -14,10 +12,10 @@ function sharedTags(myVector, peerVector) {
   return shared
 }
 
-export default function MatchCard({ match, myVector, onConnect }) {
-  const { username, bio, score, interestVector } = match
+export default function MatchCard({ match, myTags, onConnect }) {
+  const { username, bio, score, tags } = match
   const pct = Math.round(score * 100)
-  const common = sharedTags(myVector, interestVector)
+  const common = sharedTags(myTags, tags)
 
   return (
     <div className="match-card">

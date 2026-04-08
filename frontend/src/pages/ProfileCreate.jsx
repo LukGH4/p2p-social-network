@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { emptyTags, profileToTags, INTEREST_SCHEMA } from '../schema/interestSchema'
+import { emptyTags, profileToTags } from '../schema/interestSchema'
 import { broadcastProfile } from '../lib/gossipBridge'
 import { createProfile } from '../lib/profile'
 import InterestTagSelector from '../components/InterestTagSelector'
@@ -12,11 +12,7 @@ export default function ProfileCreate() {
 
   const [username, setUsername] = useState(user?.username || '')
   const [bio, setBio] = useState(user?.bio || '')
-  const [selected, setSelected] = useState(
-    user?.interestVector
-      ? profileToTags(flatVectorToNestedTags(user.interestVector))
-      : emptyTags()
-  )
+  const [selected, setSelected] = useState(user?.tags ? profileToTags(user.tags) : emptyTags())
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -101,16 +97,4 @@ export default function ProfileCreate() {
       </form>
     </div>
   )
-}
-
-// Convert flat interestVector back to nested tag structure for pre-populating the tag selector on edit
-function flatVectorToNestedTags(interestVector) {
-  const nested = {}
-  for (const [category, { tags }] of Object.entries(INTEREST_SCHEMA)) {
-    nested[category] = {}
-    for (const tag of Object.keys(tags)) {
-      if (interestVector[tag] === 1) nested[category][tag] = 1
-    }
-  }
-  return nested
 }

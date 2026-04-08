@@ -48,7 +48,7 @@ export default function MatchFeed() {
               <MatchCard
                 key={match.peerId}
                 match={match}
-                myVector={user?.interestVector}
+                myTags={user?.tags}
                 onConnect={() => navigate(`/chat/${match.peerId}`)}
               />
             ))}

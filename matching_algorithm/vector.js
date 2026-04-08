@@ -57,46 +57,50 @@ const CATEGORY_WEIGHTS = {
 
 function convertProfileToVector(profile) {
     var fullVector = [];
-    var iv = profile.interestVector || {};
 
 
     // GENRE
 
     for (var i = 0; i < GENRE_TAGS.length; i++) {
-        var weightedGenreValue = (iv[GENRE_TAGS[i]] || 0) * CATEGORY_WEIGHTS.genre;
-        fullVector.push(weightedGenreValue);
+        var currentGenreTag = GENRE_TAGS[i];
+        var userGenreValue = profile.tags.genre[currentGenreTag] || 0;
+        fullVector.push(userGenreValue * CATEGORY_WEIGHTS.genre);
     }
 
 
     // ERA
 
     for (var i = 0; i < ERA_TAGS.length; i++) {
-        var weightedEraValue = (iv[ERA_TAGS[i]] || 0) * CATEGORY_WEIGHTS.era;
-        fullVector.push(weightedEraValue);
+        var currentEraTag = ERA_TAGS[i];
+        var userEraValue = profile.tags.era[currentEraTag] || 0;
+        fullVector.push(userEraValue * CATEGORY_WEIGHTS.era);
     }
 
 
     // RATING
 
     for (var i = 0; i < RATING_TAGS.length; i++) {
-        var weightedRatingValue = (iv[RATING_TAGS[i]] || 0) * CATEGORY_WEIGHTS.rating;
-        fullVector.push(weightedRatingValue);
+        var currentRatingTag = RATING_TAGS[i];
+        var userRatingValue = profile.tags.rating[currentRatingTag] || 0;
+        fullVector.push(userRatingValue * CATEGORY_WEIGHTS.rating);
     }
 
 
     // RUNTIME
 
     for (var i = 0; i < RUNTIME_TAGS.length; i++) {
-        var weightedRuntimeValue = (iv[RUNTIME_TAGS[i]] || 0) * CATEGORY_WEIGHTS.runtime;
-        fullVector.push(weightedRuntimeValue);
+        var currentRuntimeTag = RUNTIME_TAGS[i];
+        var userRuntimeValue = profile.tags.runtime[currentRuntimeTag] || 0;
+        fullVector.push(userRuntimeValue * CATEGORY_WEIGHTS.runtime);
     }
 
 
     // LANGUAGE
 
     for (var i = 0; i < LANGUAGE_TAGS.length; i++) {
-        var weightedLanguageValue = (iv[LANGUAGE_TAGS[i]] || 0) * CATEGORY_WEIGHTS.language;
-        fullVector.push(weightedLanguageValue);
+        var currentLanguageTag = LANGUAGE_TAGS[i];
+        var userLanguageValue = profile.tags.language[currentLanguageTag] || 0;
+        fullVector.push(userLanguageValue * CATEGORY_WEIGHTS.language);
     }
 
     return fullVector;

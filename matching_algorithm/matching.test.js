@@ -9,13 +9,25 @@ test('Identical Profiles, Expected Score: 1', function() {
     var profileA = {
         peerId: 'peer1',
         username: 'peer1username',
-        interestVector: { scifi: 1, thriller: 1, '2010s': 1, R: 1, '90_to_120_min': 1, english: 1 }
+        tags: {
+            genre: {scifi: 1, thriller: 1},
+            era: {'2010s': 1},
+            rating: {R: 1},
+            runtime: {'90_to_120_min': 1},
+            language: { english: 1 }
+        }
     };
 
     var profileB = {
         peerId: 'peer2',
         username: 'peer2username',
-        interestVector: { scifi: 1, thriller: 1, '2010s': 1, R: 1, '90_to_120_min': 1, english: 1 }
+        tags: {
+            genre: {scifi: 1, thriller: 1},
+            era: {'2010s': 1},
+            rating: {R: 1},
+            runtime: {'90_to_120_min': 1},
+            language: { english: 1 }
+        }
     };
 
     var vecA = convertProfileToVector(profileA);
@@ -32,13 +44,25 @@ test('Very Different Profiles, Expected Score: Low', function() {
     var profileA = {
         peerId: 'peer3',
         username: 'peer3username',
-        interestVector: { scifi: 1, action: 1, '2010s': 1, R: 1, over_150_min: 1, korean: 1 }
+        tags: {
+            genre: {scifi: 1, action: 1},
+            era: {'2010s': 1},
+            rating: {R: 1},
+            runtime: {'over_150_min': 1},
+            language: { korean: 1 }
+        }
     };
 
     var profileB = {
         peerId: 'peer4',
         username: 'peer4username',
-        interestVector: { romance: 1, comedy: 1, '1990s': 1, PG: 1, under_90_min: 1, french: 1 }
+        tags: {
+            genre: {romance: 1, comedy: 1},
+            era: {'1990s': 1},
+            rating: {PG: 1},
+            runtime: {'under_90_min': 1},
+            language: { french: 1 }
+        }
     };
 
     var vecA = convertProfileToVector(profileA);
@@ -54,13 +78,25 @@ test('Empty Profile, Expected Score: 0', function() {
     var profileA = {
         peerId: 'peer5',
         username: 'peer5username',
-        interestVector: { scifi: 1, '2010s': 1, R: 1, '90_to_120_min': 1, english: 1 }
+        tags: {
+            genre: {scifi: 1},
+            era: {'2010s': 1},
+            rating: {R: 1},
+            runtime: {'90_to_120_min': 1},
+            language: { english: 1 }
+        }
     };
 
     var profileB = {
         peerId: 'peer6',
         username: 'peer6username',
-        interestVector: {}
+        tags: {
+            genre: {},
+            era: {},
+            rating: {},
+            runtime: {},
+            language: {}
+        }
     };
 
     var vecA = convertProfileToVector(profileA);
@@ -77,13 +113,25 @@ test('Own Profile Should Not Be In Results', function() {
     var profileA = {
         peerId: 'peer7',
         username: 'peer7username',
-        interestVector: { scifi: 1, '2010s': 1, R: 1, '90_to_120_min': 1, english: 1 }
+        tags: {
+            genre: {scifi: 1},
+            era: {'2010s': 1},
+            rating: {R: 1},
+            runtime: {'90_to_120_min': 1},
+            language: { english: 1 }
+        }
     };
 
     var profileB = {
         peerId: 'peer8',
         username: 'peer8username',
-        interestVector: { scifi: 1, '2010s': 1, R: 1, '90_to_120_min': 1, english: 1 }
+        tags: {
+            genre: {scifi: 1},
+            era: {'2010s': 1},
+            rating: {R: 1},
+            runtime: {'90_to_120_min': 1},
+            language: { english: 1 }
+        }
     };
 
     var matchesResult = getMatches(profileA, [profileA, profileB]);
@@ -104,19 +152,37 @@ test('Higher scores displayed before lower scores', function() {
     var profileA = {
         peerId: 'peer9',
         username: 'peer9username',
-        interestVector: { scifi: 1, thriller: 1, '2010s': 1, R: 1, '90_to_120_min': 1, english: 1 }
+        tags: {
+            genre: {scifi: 1, thriller: 1},
+            era: {'2010s': 1},
+            rating: {R: 1},
+            runtime: {'90_to_120_min': 1},
+            language: { english: 1 }
+        }
     };
 
     var profileB = {
         peerId: 'peer10',
         username: 'peer10username',
-        interestVector: { scifi: 1, thriller: 1, '2010s': 1, R: 1, '90_to_120_min': 1, english: 1 }
+        tags: {
+            genre: {scifi: 1, thriller: 1},
+            era: {'2010s': 1},
+            rating: {R: 1},
+            runtime: {'90_to_120_min': 1},
+            language: { english: 1 }
+        }
     };
 
     var profileC = {
         peerId: 'peer11',
         username: 'peer11username',
-        interestVector: { romance: 1, '1980s': 1, G: 1, under_90_min: 1, french: 1 }
+        tags: {
+            genre: {romance: 1},
+            era: {'1980s': 1},
+            rating: {G: 1},
+            runtime: {'under_90_min': 1},
+            language: { french: 1 }
+        }
     };
 
     var matchesResult = getMatches(profileA, [profileB, profileC]);
@@ -127,13 +193,19 @@ test('Higher scores displayed before lower scores', function() {
 });
 
 
-// Test 6: Skipping peers with no interestVector
+// Test 6: Skipping peers with no tags
 
-test('Skipping peers with no interestVector', function() {
+test('Skipping peers with no tags', function() {
     var profileA = {
         peerId: 'peer12',
         username: 'peer12username',
-        interestVector: { scifi: 1, '2010s': 1, R: 1, '90_to_120_min': 1, english: 1 }
+        tags: {
+            genre: {scifi: 1},
+            era: {'2010s': 1},
+            rating: {R: 1},
+            runtime: {'90_to_120_min': 1},
+            language: { english: 1 }
+        }
     };
 
     var profileB = {
@@ -152,13 +224,25 @@ test('Profiles with Moderate Overlap, Expected Score: Medium', function() {
     var profileA = {
         peerId: 'peer14',
         username: 'peer14username',
-        interestVector: { scifi: 1, thriller: 1, romance: 1, '2010s': 1, R: 1, '90_to_120_min': 1, english: 1 }
+        tags: {
+            genre: {scifi: 1, thriller: 1, romance: 1},
+            era: {'2010s': 1},
+            rating: {R: 1},
+            runtime: {'90_to_120_min': 1},
+            language: { english: 1 }
+        }
     };
 
     var profileB = {
         peerId: 'peer15',
         username: 'peer15username',
-        interestVector: { scifi: 1, horror: 1, romance: 1, '2000s': 1, PG13: 1, '90_to_120_min': 1, english: 1 }
+        tags: {
+            genre: {scifi: 1, horror: 1, romance: 1},
+            era: {'2000s': 1},
+            rating: {PG13: 1},
+            runtime: {'90_to_120_min': 1},
+            language: { english: 1 }
+        }
     };
 
     var vecA = convertProfileToVector(profileA);

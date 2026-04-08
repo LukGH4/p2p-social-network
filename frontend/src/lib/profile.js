@@ -4,20 +4,9 @@
 
 import { generateKeyPair, exportPublicKey, signPayload, verifyPayload } from './crypto'
 import { saveProfile, getProfile, saveKeypair, getKeypair } from './db'
-import { INTEREST_SCHEMA } from '../schema/interestSchema'
+import { tagsToProfile } from '../schema/interestSchema'
 
 export const DEFAULT_TTL_MS = 3_600_000
-
-// Convert { genre: ['action', 'scifi'], era: ['2010s'], ... } to a flat { action: 1, scifi: 1, '2010s': 1, ... }
-function buildInterestVector(selectedTags) {
-  const vector = {}
-  for (const category of Object.keys(INTEREST_SCHEMA)) {
-    for (const tag of Object.keys(INTEREST_SCHEMA[category].tags)) {
-      vector[tag] = (selectedTags[category] || []).includes(tag) ? 1 : 0
-    }
-  }
-  return vector
-}
 
 // Serialize the signable payload — sorted keys for deterministic output
 function serializePayload(unsigned) {
@@ -74,7 +63,7 @@ export async function createProfile(formData, peerId) {
     peerId,
     username: formData.username.trim(),
     bio: formData.bio.trim(),
-    interestVector: buildInterestVector(formData.selectedTags),
+    tags: tagsToProfile(formData.selectedTags),
     publicKey: publicKeyBase64,
   }
 

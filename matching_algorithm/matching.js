@@ -8,7 +8,7 @@ function getMatches(myProfile, arrayOfPeerProfiles) {
     for (var i = 0; i < arrayOfPeerProfiles.length; i++) {
         var currentPeerProfile = arrayOfPeerProfiles[i];
 
-        if (!currentPeerProfile.interestVector) {
+        if (!currentPeerProfile.tags) {
             continue;
         }
         

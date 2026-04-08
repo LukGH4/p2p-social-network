@@ -61,13 +61,12 @@ All profiles on the network are `SignedProfile` objects:
   peerId: 'string',          // assigned by libp2p (Part 1)
   username: 'string',
   bio: 'string',
-  interestVector: {          // flat map — all known tag keys, values 0 or 1
-    action: 1,
-    scifi: 1,
-    thriller: 0,
-    '2010s': 1,
-    english: 1,
-    // ...all other tags default to 0
+  tags: {                    // nested by category — omitted tags default to 0
+    genre:    { scifi: 1, action: 0.5 },
+    era:      { '2010s': 1 },
+    rating:   { R: 1 },
+    runtime:  { '90_to_120_min': 1 },
+    language: { english: 1 }
   },
   publicKey: 'base64',       // ECDSA P-256 public key (SPKI format)
   signature: 'base64',       // signs everything except this field
