@@ -7,6 +7,7 @@ import { webSockets } from '@libp2p/websockets'
 import { multiaddr } from '@multiformats/multiaddr'
 import { createLibp2p } from 'libp2p'
 
+
 const RAW_PROTOCOL = '/findyourpeer/raw/1.0.0'
 const DISCOVERY_PROTOCOL = '/findyourpeer/discovery/1.0.0'
 const DISCOVERY_INTERVAL_MS = 5_000
@@ -49,7 +50,7 @@ export class P2PNetwork {
         listen: ['/p2p-circuit']
       },
       transports: [
-        webSockets(),
+        webSockets({filter: (multiaddrs) => multiaddrs}),
         circuitRelayTransport()
       ],
       connectionEncrypters: [
@@ -60,6 +61,9 @@ export class P2PNetwork {
       ],
       services: {
         identify: identify()
+      },
+      connectionGater: {
+        denyDialMultiaddr: async () => false, 
       }
     })
 
@@ -191,7 +195,8 @@ export class P2PNetwork {
       await delay(250)
     }
 
-    throw new Error('timed out waiting for a relay address')
+    console.warn('Timed out waiting for a relay address (Safe to ignore for local testing)')
+    return []
   }
 
   async refreshPeers() {

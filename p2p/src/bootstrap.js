@@ -45,9 +45,23 @@ const node = await createLibp2p({
   streamMuxers: [
     yamux()
   ],
+  connectionGater: {
+    denyDialMultiaddr: async () => false, 
+  },
   services: {
     identify: identify(),
-    relay: circuitRelayServer()
+    relay: circuitRelayServer({
+      services: {
+    identify: identify(),
+    relay: circuitRelayServer({
+      reservations: {
+        maxReservations: 100,
+        maxReservationsPerIP: 100,
+        applyDefaultLimit: false
+      }
+    })
+  }
+    })
   }
 })
 

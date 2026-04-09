@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { getProfile, saveProfile, deleteProfile } from '../lib/db'
+import { initGossipNetwork, broadcastProfile, broadcastDeletion } from '../lib/gossipBridge'
 
 const AuthContext = createContext(null)
 
@@ -9,7 +10,10 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     getProfile().then(profile => {
-      if (profile) setUser(profile)
+      if (profile) {
+        setUser(profile)
+        initGossipNetwork(profile)
+      }
       setLoading(false)
     })
   }, [])
@@ -17,9 +21,12 @@ export function AuthProvider({ children }) {
   async function login(profile) {
     await saveProfile(profile)
     setUser(profile)
+    await initGossipNetwork(profile)
+    broadcastProfile(profile)
   }
 
   async function logout() {
+    await broadcastDeletion();
     await deleteProfile()
     setUser(null)
   }
