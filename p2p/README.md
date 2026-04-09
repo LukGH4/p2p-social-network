@@ -55,3 +55,5 @@ Run `src/bootstrap.js` on a small VM and open TCP port `4012`. Use the VM's publ
 
 - This uses relay-backed discovery through the bootstrap node, which is enough for the assignment milestone.
 - `sendToNetwork(payload)` broadcasts to currently known peers.
+
+-- Local Testing Quirk: When testing multiple peers on the same local network or machine (like multiple terminal windows or browser tabs), you may see a warning like: failed to connect to <PEER_ID>: failed to connect via relay with status NO_RESERVATION. This is completely safe to ignore. It simply means the bootstrap node's anti-spam limits rejected multiple circuit reservations from the same local IP. Your peers will still successfully find and connect to each other via the fallback discovery proto
