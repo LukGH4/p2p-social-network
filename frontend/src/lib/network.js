@@ -42,6 +42,7 @@ export class P2PNetwork {
     this.knownPeers = new Map()
     this.connectedPeers = new Set()
     this.messageHandlers = []
+    this.peerConnectHandlers = []
     this.discoveryTimer = null
   }
 
@@ -70,7 +71,7 @@ export class P2PNetwork {
 
     this.node.handle(
       RAW_PROTOCOL,
-      async ({ stream, connection }) => {
+      async (stream, connection) => {
         const channel = lpStream(stream)
         const chunk = await channel.read()
 
@@ -80,6 +81,7 @@ export class P2PNetwork {
 
         const payload = decodeChunk(chunk)
         const from = connection.remotePeer.toString()
+        console.log('[network] RAW received type:', payload?.type)
 
         for (const callback of this.messageHandlers) {
           callback(payload, from)
@@ -94,6 +96,7 @@ export class P2PNetwork {
       const peerId = getPeerIdFromEvent(evt)
       if (peerId && peerId !== this.bootstrapPeerId) {
         this.connectedPeers.add(peerId)
+        for (const cb of this.peerConnectHandlers) cb(peerId)
       }
     })
 
@@ -105,16 +108,28 @@ export class P2PNetwork {
     })
 
     await this.node.start()
+    console.log('[p2p] node started, peerId:', this.node.peerId.toString())
 
     if (!this.bootstrapAddr) {
       return
     }
 
-    const connection = await this.node.dial(multiaddr(this.bootstrapAddr))
+    let connection
+    try {
+      console.log('[p2p] connecting to bootstrap:', this.bootstrapAddr)
+      connection = await this.node.dial(multiaddr(this.bootstrapAddr))
+    } catch (err) {
+      console.error('[p2p] bootstrap connection failed — is the bootstrap running?', err.message)
+      throw new Error('Bootstrap unreachable: ' + err.message)
+    }
+
     this.bootstrapPeerId = connection.remotePeer.toString()
     this.connectedPeers.delete(this.bootstrapPeerId)
+    console.log('[p2p] connected to bootstrap, peerId:', this.bootstrapPeerId)
 
-    await this.waitForRelayAddress()
+    const relayAddrs = await this.waitForRelayAddress()
+    console.log('[p2p] relay addresses:', relayAddrs.length ? relayAddrs : 'none (relay reservation may have failed)')
+
     await this.refreshPeers()
 
     this.discoveryTimer = setInterval(() => {
@@ -136,6 +151,14 @@ export class P2PNetwork {
     return Array.from(this.connectedPeers)
   }
 
+  onPeerConnect(callback) {
+    this.peerConnectHandlers.push(callback)
+    return () => {
+      const i = this.peerConnectHandlers.indexOf(callback)
+      if (i !== -1) this.peerConnectHandlers.splice(i, 1)
+    }
+  }
+
   onMessage(callback) {
     this.messageHandlers.push(callback)
 
@@ -148,23 +171,30 @@ export class P2PNetwork {
   }
 
   async sendToNetwork(payload) {
-    const peers = Array.from(this.knownPeers.values())
-
-    for (const peer of peers) {
-      if (!peer.addresses.length) {
-        continue
+    // Route through bootstrap — avoids NO_RESERVATION circuit relay failures on same-machine testing
+    if (this.bootstrapAddr && this.bootstrapPeerId) {
+      try {
+        const bootstrapMa = multiaddr(`${this.bootstrapAddr}/p2p/${this.bootstrapPeerId}`)
+        const stream = await this.node.dialProtocol(bootstrapMa, BROADCAST_PROTOCOL)
+        const channel = lpStream(stream)
+        await channel.write(encodeJson(payload))
+        await stream.close()
+        return
+      } catch (err) {
+        console.warn('[p2p] broadcast via bootstrap failed, trying direct:', err.message)
       }
+    }
 
+    // Fallback: direct circuit relay per-peer
+    for (const peer of this.knownPeers.values()) {
+      if (!peer.addresses.length) continue
       try {
         const stream = await this.node.dialProtocol(
           multiaddr(peer.addresses[0]),
           RAW_PROTOCOL,
-          {
-            runOnLimitedConnection: true
-          }
+          { runOnLimitedConnection: true }
         )
         const channel = lpStream(stream)
-
         await channel.write(encodeJson(payload))
         await stream.close()
       } catch (err) {

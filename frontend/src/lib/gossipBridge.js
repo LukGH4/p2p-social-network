@@ -1,70 +1,113 @@
-import { P2PNetwork } from '../../../p2p/src/network.js'// Adjust this path to your Part 1 network.js
-// Add signProfile to your existing profile.js import
+import { P2PNetwork } from './network.js'
 import { verifyProfile, isProfileExpired } from './profile.js'
 
-const peersCache = new Map() // Map<peerId, SignedProfile>
-const listeners = []
+const peersCache = new Map()
+const profileListeners = []
+const directMessageListeners = []
+const statusListeners = []
+const timers = []
 let network = null
 let myProfile = null
-let timers = []
+let status = 'disconnected' // 'disconnected' | 'connecting' | 'connected' | 'error'
+let statusMessage = ''
 
-// Start the network and begin gossiping
+function setStatus(s, msg = '') {
+  status = s
+  statusMessage = msg
+  console.log('[gossip] status:', s, msg)
+  statusListeners.forEach(cb => cb(s, msg))
+}
+
+export function getNetworkStatus() {
+  return { status, statusMessage, peerCount: peersCache.size }
+}
+
+export function onNetworkStatusChange(callback) {
+  statusListeners.push(callback)
+  return () => {
+    const i = statusListeners.indexOf(callback)
+    if (i !== -1) statusListeners.splice(i, 1)
+  }
+}
+
 export async function initGossipNetwork(localProfile) {
-  if (network) return // Prevent double initialization
-  
+  if (network) return
+
   myProfile = localProfile
+  setStatus('connecting', 'Connecting to bootstrap...')
 
-  // 1. Initialize Part 1 Network
-  network = new P2PNetwork({ 
-    bootstrapAddr: '/ip4/127.0.0.1/tcp/4012/ws' // TODO: Replace with your cloud bootstrap IP
+  network = new P2PNetwork({
+    bootstrapAddr: '/ip4/127.0.0.1/tcp/4012/ws' // TODO: replace with deployed bootstrap IP
   })
-  
-  await network.start()
 
-  // 2. Listen for incoming profile gossips
+  try {
+    await network.start()
+  } catch (err) {
+    setStatus('error', err.message)
+    network = null
+    throw err
+  }
+
+  setStatus('connected', 'Connected to bootstrap')
+
+  // When a new peer connects, immediately re-broadcast our profile so they see us right away
+  network.onPeerConnect((peerId) => {
+    console.log('[gossip] peer connected:', peerId, '— broadcasting profile')
+    if (myProfile) broadcastProfile(myProfile)
+  })
+
   network.onMessage(async (msg, from) => {
-    if (msg.type !== 'PROFILE_GOSSIP' || !msg.profile) return
-    if (msg.type === 'PROFILE_DELETE' && msg.peerId) {
-      if (peersCache.has(msg.peerId)) {
-        peersCache.delete(msg.peerId);
-        notifyListeners();
-        // Forward the deletion to other peers
-        await network.sendToNetwork(msg); 
+    // Direct chat message
+    if (msg.type === 'DIRECT_MESSAGE') {
+      console.log('[gossip] DM received → to:', msg.to, '| myPeerId:', myProfile?.peerId, '| match:', msg.to === myProfile?.peerId)
+      if (msg.to === myProfile?.peerId) {
+        console.log('[gossip] delivering DM from', msg.from)
+        directMessageListeners.forEach(cb => cb({ from: msg.from, text: msg.text }))
       }
-      return;
-    }
-    
-    const profile = msg.profile
-    
-    // Ignore our own profile bouncing back
-    if (profile.peerId === network.getPeerId()) return
-
-    // Validate TTL and Cryptographic Signature (Part 2 tools)
-    if (isProfileExpired(profile)) return
-    const isValid = await verifyProfile(profile)
-    if (!isValid) {
-      console.warn(`[Gossip] Invalid signature from ${from}`)
       return
     }
 
-    // Deduplication: Only process if it's new or updated
+    // Profile deletion
+    if (msg.type === 'PROFILE_DELETE' && msg.peerId) {
+      if (peersCache.has(msg.peerId)) {
+        peersCache.delete(msg.peerId)
+        notifyProfileListeners()
+        await network.sendToNetwork(msg)
+      }
+      return
+    }
+
+    // Profile gossip
+    if (msg.type !== 'PROFILE_GOSSIP' || !msg.profile) return
+
+    const profile = msg.profile
+
+    if (profile.peerId === myProfile?.peerId) return
+    if (isProfileExpired(profile)) return
+
+    const isValid = await verifyProfile(profile)
+    if (!isValid) {
+      console.warn('[gossip] invalid signature from', from)
+      return
+    }
+
     const cached = peersCache.get(profile.peerId)
-    if (cached && cached.timestamp >= profile.timestamp) return 
+    if (cached && cached.timestamp >= profile.timestamp) return
 
-    // Save to cache and notify the React UI
+    console.log('[gossip] received profile from', profile.username)
     peersCache.set(profile.peerId, profile)
-    notifyListeners()
+    setStatus('connected', `Connected — ${peersCache.size} peer(s) found`)
+    notifyProfileListeners()
 
-    // Re-broadcast (Gossip) to our connected peers
     await network.sendToNetwork({ type: 'PROFILE_GOSSIP', profile })
   })
 
-  // 3. Periodic Gossip Broadcast (every 15 seconds)
+  // Re-broadcast every 5s so late-joiners see us quickly
   timers.push(setInterval(() => {
     if (myProfile) broadcastProfile(myProfile)
-  }, 15_000))
+  }, 5_000))
 
-  // 4. Periodic Cache Pruning for expired profiles (every 10 seconds)
+  // Prune expired profiles every 10s
   timers.push(setInterval(() => {
     let changed = false
     for (const [peerId, profile] of peersCache.entries()) {
@@ -73,55 +116,63 @@ export async function initGossipNetwork(localProfile) {
         changed = true
       }
     }
-    if (changed) notifyListeners()
+    if (changed) {
+      setStatus('connected', `Connected — ${peersCache.size} peer(s) found`)
+      notifyProfileListeners()
+    }
   }, 10_000))
 
-  // Initial broadcast
   if (myProfile) broadcastProfile(myProfile)
 }
 
-// Broadcast your own profile to the network
-// Broadcast your own profile to the network
 export async function broadcastProfile(profile) {
-  myProfile = profile;
-  if (!network) return;
-
-  // We DO NOT update the timestamp or re-sign it here.
-  // The original signature is valid for 1 hour, which is plenty of time!
-
-  await network.sendToNetwork({
-    type: 'PROFILE_GOSSIP',
-    profile: myProfile
-  });
+  myProfile = profile
+  if (!network) return
+  await network.sendToNetwork({ type: 'PROFILE_GOSSIP', profile: myProfile })
 }
 
 export async function broadcastDeletion() {
-  if (!network || !myProfile) return;
-  
-  await network.sendToNetwork({
-    type: 'PROFILE_DELETE',
-    peerId: myProfile.peerId
-  });
-  
-  myProfile = null;
+  if (!network || !myProfile) return
+  await network.sendToNetwork({ type: 'PROFILE_DELETE', peerId: myProfile.peerId })
+  myProfile = null
 }
 
-// Returns all valid peer profiles seen so far
 export function getKnownProfiles() {
   return Array.from(peersCache.values())
 }
 
-// Called by React to listen for UI updates
 export function onPeerProfile(callback) {
-  listeners.push(callback)
+  profileListeners.push(callback)
   return () => {
-    const i = listeners.indexOf(callback)
-    if (i !== -1) listeners.splice(i, 1)
+    const i = profileListeners.indexOf(callback)
+    if (i !== -1) profileListeners.splice(i, 1)
   }
 }
 
-// Internal helper
-function notifyListeners() {
-  const allProfiles = getKnownProfiles()
-  listeners.forEach(cb => cb(allProfiles))
+export function onDirectMessage(callback) {
+  directMessageListeners.push(callback)
+  return () => {
+    const i = directMessageListeners.indexOf(callback)
+    if (i !== -1) directMessageListeners.splice(i, 1)
+  }
+}
+
+export function getMyPeerId() {
+  return myProfile?.peerId ?? null
+}
+
+export async function sendDirectMessage(toPeerId, text) {
+  if (!network) { console.warn('[gossip] network not ready'); return }
+  console.log('[gossip] sending DM to:', toPeerId, 'from:', myProfile?.peerId)
+  await network.sendToNetwork({
+    type: 'DIRECT_MESSAGE',
+    to: toPeerId,
+    from: myProfile?.peerId,
+    text,
+  })
+}
+
+function notifyProfileListeners() {
+  const all = getKnownProfiles()
+  profileListeners.forEach(cb => cb(all))
 }

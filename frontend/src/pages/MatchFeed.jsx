@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getMatches } from '../lib/matchingBridge'
-import { getKnownProfiles, onPeerProfile } from '../lib/gossipBridge'
+import { getKnownProfiles, onPeerProfile, getNetworkStatus, onNetworkStatusChange } from '../lib/gossipBridge'
 import MatchCard from '../components/MatchCard'
 
 export default function MatchFeed() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [matches, setMatches] = useState([])
+  const [netStatus, setNetStatus] = useState(getNetworkStatus())
 
   function refresh(peers) {
     setMatches(getMatches(user, peers))
@@ -17,12 +18,27 @@ export default function MatchFeed() {
   useEffect(() => {
     refresh(getKnownProfiles())
 
-    const unsub = onPeerProfile(() => {
+    const unsubProfiles = onPeerProfile(() => {
       refresh(getKnownProfiles())
     })
 
-    return unsub
+    const unsubStatus = onNetworkStatusChange(() => {
+      setNetStatus(getNetworkStatus())
+    })
+
+    return () => {
+      unsubProfiles()
+      unsubStatus()
+    }
   }, [])
+
+  function statusBar() {
+    const { status, statusMessage } = netStatus
+    if (status === 'connecting') return <p className="net-status net-status--connecting">Connecting to network...</p>
+    if (status === 'error')      return <p className="net-status net-status--error">Network error — is the bootstrap running? ({statusMessage})</p>
+    if (status === 'connected')  return <p className="net-status net-status--ok">{statusMessage || 'Connected'}</p>
+    return null
+  }
 
   return (
     <div className="feed-page">
@@ -33,6 +49,8 @@ export default function MatchFeed() {
           <button className="btn-ghost" onClick={() => { logout(); navigate('/') }}>Sign Out</button>
         </div>
       </header>
+
+      {statusBar()}
 
       <div className="feed-body">
         <p className="welcome">Hey {user?.username}, here are your matches.</p>

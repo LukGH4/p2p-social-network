@@ -217,6 +217,30 @@ textarea {
   font-weight: 500;
 }
 
+/* ---- Network status bar ---- */
+
+.net-status {
+  text-align: center;
+  font-size: 13px;
+  padding: 6px 16px;
+  margin: 0;
+}
+
+.net-status--connecting {
+  background: #1e1a00;
+  color: #f59e0b;
+}
+
+.net-status--error {
+  background: #1e0000;
+  color: #f87171;
+}
+
+.net-status--ok {
+  background: #001a0d;
+  color: #4ade80;
+}
+
 /* ---- Feed ---- */
 
 .feed-page {

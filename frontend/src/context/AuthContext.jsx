@@ -9,24 +9,34 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getProfile().then(profile => {
+    ;(async () => {
+      const profile = await getProfile()
       if (profile) {
         setUser(profile)
-        initGossipNetwork(profile)
+        try {
+          await initGossipNetwork(profile)
+        } catch (err) {
+          // Network error — user can still use the app, just no discovery
+          console.error('[auth] network init failed on load:', err.message)
+        }
       }
       setLoading(false)
-    })
+    })()
   }, [])
 
   async function login(profile) {
     await saveProfile(profile)
     setUser(profile)
-    await initGossipNetwork(profile)
-    broadcastProfile(profile)
+    try {
+      await initGossipNetwork(profile)
+      broadcastProfile(profile)
+    } catch (err) {
+      console.error('[auth] network init failed on login:', err.message)
+    }
   }
 
   async function logout() {
-    await broadcastDeletion();
+    await broadcastDeletion()
     await deleteProfile()
     setUser(null)
   }
