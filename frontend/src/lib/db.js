@@ -3,13 +3,14 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'findyourpeer-db'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 function getDB() {
   return openDB(DB_NAME, DB_VERSION, {
     upgrade(db) {
       if (!db.objectStoreNames.contains('profiles')) db.createObjectStore('profiles')
       if (!db.objectStoreNames.contains('keypairs')) db.createObjectStore('keypairs')
+      if (!db.objectStoreNames.contains('vouches')) db.createObjectStore('vouches')
     },
   })
 }
@@ -46,4 +47,21 @@ export async function getKeypair() {
 export async function deleteKeypair() {
   const db = await getDB()
   await db.delete('keypairs', 'myKeypair')
+}
+
+// Trust vouch store
+
+export async function saveVouch(vouch) {
+  const db = await getDB()
+  await db.put('vouches', vouch, vouch.id)
+}
+
+export async function getVouches() {
+  const db = await getDB()
+  return (await db.getAll('vouches')) ?? []
+}
+
+export async function deleteVouch(id) {
+  const db = await getDB()
+  await db.delete('vouches', id)
 }

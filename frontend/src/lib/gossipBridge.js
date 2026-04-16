@@ -1,117 +1,154 @@
-import { P2PNetwork } from '../../../p2p/src/network.js'// Adjust this path to your Part 1 network.js
-// Add signProfile to your existing profile.js import
+import { P2PNetwork } from '../../../p2p/src/network.js'
 import { verifyProfile, isProfileExpired } from './profile.js'
+import { verifyBlockchainIdentity } from './blockchain.js'
+import {
+  buildPeerTrust,
+  createPeerVouch,
+  getVouchId,
+  loadStoredVouches,
+  verifyPeerVouch,
+} from './trust.js'
 
-const peersCache = new Map() // Map<peerId, SignedProfile>
+const peersCache = new Map()
+const trustCache = new Map()
+const vouchCache = new Map()
+const pendingVouches = new Map()
 const listeners = []
+
 let network = null
 let myProfile = null
 let timers = []
 
-// Start the network and begin gossiping
 export async function initGossipNetwork(localProfile) {
-  if (network) return // Prevent double initialization
-  
+  if (network) return
+
   myProfile = localProfile
+  await refreshLocalTrust(localProfile)
 
-  // 1. Initialize Part 1 Network
-  network = new P2PNetwork({ 
-    bootstrapAddr: '/ip4/127.0.0.1/tcp/4012/ws' // TODO: Replace with your cloud bootstrap IP
+  network = new P2PNetwork({
+    bootstrapAddr: '/ip4/127.0.0.1/tcp/4012/ws',
   })
-  
+
   await network.start()
+  await restoreStoredVouches()
 
-  // 2. Listen for incoming profile gossips
   network.onMessage(async (msg, from) => {
-    if (msg.type !== 'PROFILE_GOSSIP' || !msg.profile) return
     if (msg.type === 'PROFILE_DELETE' && msg.peerId) {
-      if (peersCache.has(msg.peerId)) {
-        peersCache.delete(msg.peerId);
-        notifyListeners();
-        // Forward the deletion to other peers
-        await network.sendToNetwork(msg); 
-      }
-      return;
-    }
-    
-    const profile = msg.profile
-    
-    // Ignore our own profile bouncing back
-    if (profile.peerId === network.getPeerId()) return
-
-    // Validate TTL and Cryptographic Signature (Part 2 tools)
-    if (isProfileExpired(profile)) return
-    const isValid = await verifyProfile(profile)
-    if (!isValid) {
-      console.warn(`[Gossip] Invalid signature from ${from}`)
+      handleProfileDeletion(msg.peerId)
+      await network.sendToNetwork(msg)
       return
     }
 
-    // Deduplication: Only process if it's new or updated
-    const cached = peersCache.get(profile.peerId)
-    if (cached && cached.timestamp >= profile.timestamp) return 
+    if (msg.type === 'TRUST_VOUCH' && msg.vouch) {
+      await handleIncomingVouch(msg.vouch, from)
+      return
+    }
 
-    // Save to cache and notify the React UI
-    peersCache.set(profile.peerId, profile)
-    notifyListeners()
-
-    // Re-broadcast (Gossip) to our connected peers
-    await network.sendToNetwork({ type: 'PROFILE_GOSSIP', profile })
+    if (msg.type === 'PROFILE_GOSSIP' && msg.profile) {
+      await handleIncomingProfile(msg.profile, from)
+    }
   })
 
-  // 3. Periodic Gossip Broadcast (every 15 seconds)
   timers.push(setInterval(() => {
     if (myProfile) broadcastProfile(myProfile)
   }, 15_000))
 
-  // 4. Periodic Cache Pruning for expired profiles (every 10 seconds)
   timers.push(setInterval(() => {
     let changed = false
     for (const [peerId, profile] of peersCache.entries()) {
       if (isProfileExpired(profile)) {
         peersCache.delete(peerId)
+        trustCache.delete(peerId)
         changed = true
       }
     }
     if (changed) notifyListeners()
   }, 10_000))
 
-  // Initial broadcast
   if (myProfile) broadcastProfile(myProfile)
 }
 
-// Broadcast your own profile to the network
-// Broadcast your own profile to the network
 export async function broadcastProfile(profile) {
-  myProfile = profile;
-  if (!network) return;
+  myProfile = profile
+  await refreshLocalTrust(profile)
 
-  // We DO NOT update the timestamp or re-sign it here.
-  // The original signature is valid for 1 hour, which is plenty of time!
+  if (!network) return
 
   await network.sendToNetwork({
     type: 'PROFILE_GOSSIP',
-    profile: myProfile
-  });
+    profile: myProfile,
+  })
 }
 
 export async function broadcastDeletion() {
-  if (!network || !myProfile) return;
-  
+  if (!network || !myProfile) return
+
   await network.sendToNetwork({
     type: 'PROFILE_DELETE',
-    peerId: myProfile.peerId
-  });
-  
-  myProfile = null;
+    peerId: myProfile.peerId,
+  })
+
+  myProfile = null
 }
 
-// Returns all valid peer profiles seen so far
 export function getKnownProfiles() {
-  return Array.from(peersCache.values())
+  return Array.from(peersCache.values()).map(profile => ({
+    ...profile,
+    trust: getPeerTrust(profile.peerId),
+  }))
 }
 
-// Called by React to listen for UI updates
+export function getPeerTrust(peerId) {
+  const profile = getProfileByPeerId(peerId)
+  if (!profile) {
+    return buildPeerTrust(null, null, [])
+  }
+
+  const trustedVouches = getTrustedVouches(peerId)
+  return buildPeerTrust(profile, trustCache.get(peerId), trustedVouches)
+}
+
+export function hasVouchedForPeer(subjectPeerId) {
+  if (!myProfile?.peerId) return false
+  return vouchCache.get(subjectPeerId)?.has(myProfile.peerId) ?? false
+}
+
+export async function vouchForPeer(subjectPeerId, note = '') {
+  if (!myProfile) {
+    throw new Error('You must have a profile before vouching for peers.')
+  }
+
+  const myTrust = trustCache.get(myProfile.peerId)
+  if (!myTrust?.verified) {
+    throw new Error('Link and verify a wallet before issuing trust vouches.')
+  }
+
+  if (subjectPeerId === myProfile.peerId) {
+    throw new Error('You cannot vouch for yourself.')
+  }
+
+  const existing = vouchCache.get(subjectPeerId)?.get(myProfile.peerId)
+  if (existing) return existing
+
+  const vouch = await createPeerVouch({
+    voucherProfile: myProfile,
+    subjectPeerId,
+    note,
+  })
+
+  cacheVouch(vouch)
+  notifyListeners()
+
+  if (network) {
+    await network.sendToNetwork({
+      type: 'TRUST_VOUCH',
+      vouch,
+    })
+  }
+
+  return vouch
+}
+
 export function onPeerProfile(callback) {
   listeners.push(callback)
   return () => {
@@ -120,7 +157,134 @@ export function onPeerProfile(callback) {
   }
 }
 
-// Internal helper
+async function handleIncomingProfile(profile, from) {
+  if (profile.peerId === network.getPeerId()) return
+  if (isProfileExpired(profile)) return
+
+  const isValidProfile = await verifyProfile(profile)
+  if (!isValidProfile) {
+    console.warn(`[Gossip] Invalid signature from ${from}`)
+    return
+  }
+
+  const identityStatus = await verifyBlockchainIdentity(profile)
+  if (profile.blockchainIdentity && !identityStatus.verified) {
+    console.warn(`[Gossip] Rejected blockchain identity from ${from}: ${identityStatus.reason}`)
+    return
+  }
+
+  const cached = peersCache.get(profile.peerId)
+  if (cached && cached.timestamp >= profile.timestamp) return
+
+  peersCache.set(profile.peerId, profile)
+  trustCache.set(profile.peerId, identityStatus)
+
+  await processPendingVouches(profile.peerId)
+  notifyListeners()
+
+  await network.sendToNetwork({ type: 'PROFILE_GOSSIP', profile })
+}
+
+async function handleIncomingVouch(vouch, from) {
+  const vouchId = getVouchId(vouch.voucherPeerId, vouch.subjectPeerId)
+  const subjectCache = vouchCache.get(vouch.subjectPeerId)
+  const cached = subjectCache?.get(vouch.voucherPeerId)
+  if (cached && cached.timestamp >= vouch.timestamp) return
+
+  const result = await verifyPeerVouch(vouch, getProfileByPeerId)
+  if (!result.valid) {
+    if (result.reason === 'unknown-voucher') {
+      pendingVouches.set(vouchId, vouch)
+    } else {
+      console.warn(`[Gossip] Rejected trust vouch from ${from}: ${result.reason}`)
+    }
+    return
+  }
+
+  cacheVouch(vouch)
+  pendingVouches.delete(vouchId)
+  notifyListeners()
+
+  await network.sendToNetwork({
+    type: 'TRUST_VOUCH',
+    vouch,
+  })
+}
+
+function handleProfileDeletion(peerId) {
+  if (!peersCache.has(peerId)) return
+
+  peersCache.delete(peerId)
+  trustCache.delete(peerId)
+  notifyListeners()
+}
+
+function getProfileByPeerId(peerId) {
+  if (myProfile?.peerId === peerId) return myProfile
+  return peersCache.get(peerId) ?? null
+}
+
+function getTrustedVouches(subjectPeerId) {
+  const subjectVouches = vouchCache.get(subjectPeerId)
+  if (!subjectVouches) return []
+
+  return Array.from(subjectVouches.values()).filter(vouch => {
+    const voucherTrust = trustCache.get(vouch.voucherPeerId)
+    return Boolean(voucherTrust?.verified)
+  })
+}
+
+function cacheVouch(vouch) {
+  let subjectVouches = vouchCache.get(vouch.subjectPeerId)
+  if (!subjectVouches) {
+    subjectVouches = new Map()
+    vouchCache.set(vouch.subjectPeerId, subjectVouches)
+  }
+
+  subjectVouches.set(vouch.voucherPeerId, {
+    ...vouch,
+    id: getVouchId(vouch.voucherPeerId, vouch.subjectPeerId),
+  })
+}
+
+async function processPendingVouches(voucherPeerId) {
+  for (const [id, vouch] of pendingVouches.entries()) {
+    if (vouch.voucherPeerId !== voucherPeerId) continue
+
+    const result = await verifyPeerVouch(vouch, getProfileByPeerId)
+    if (result.valid) {
+      cacheVouch(vouch)
+      pendingVouches.delete(id)
+    }
+  }
+}
+
+async function refreshLocalTrust(profile) {
+  if (!profile?.peerId) return
+  trustCache.set(profile.peerId, await verifyBlockchainIdentity(profile))
+}
+
+async function restoreStoredVouches() {
+  const storedVouches = await loadStoredVouches()
+  const validVouches = []
+
+  for (const vouch of storedVouches) {
+    const result = await verifyPeerVouch(vouch, getProfileByPeerId)
+    if (!result.valid) continue
+    cacheVouch(vouch)
+    validVouches.push(vouch)
+  }
+
+  if (!network) return
+
+  for (const vouch of validVouches) {
+    await network.sendToNetwork({
+      type: 'TRUST_VOUCH',
+      vouch,
+    })
+  }
+}
+
 function notifyListeners() {
   const allProfiles = getKnownProfiles()
   listeners.forEach(cb => cb(allProfiles))
