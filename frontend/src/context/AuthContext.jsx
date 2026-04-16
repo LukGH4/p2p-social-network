@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components */
+
 import { createContext, useContext, useState, useEffect } from 'react'
 import { getProfile, saveProfile, deleteProfile } from '../lib/db'
 import { initGossipNetwork, broadcastProfile, broadcastDeletion } from '../lib/gossipBridge'

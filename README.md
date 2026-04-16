@@ -83,6 +83,25 @@ All profiles on the network are `SignedProfile` objects:
 4. Any peer receiving a profile can call `verifyProfile` to confirm it was signed by the holder of the matching private key.
 5. `isProfileExpired` checks `Date.now() > timestamp + ttl` — Part 3 uses this to decide whether to cache or drop an incoming profile.
 
+### Blockchain Authentication
+
+- Added blockchain-backed identity binding so a user can link an Ethereum wallet and optionally an ENS name to their FindYourPeer profile.
+- Kept personal profile data and chat messages off-chain; only the identity trust anchor is blockchain-based.
+- Used the wallet to sign a message binding the app peerId and app public key to the wallet address.
+- Verified ENS names against Ethereum mainnet so an ENS claim only counts if it resolves to the same wallet.
+- Extended signed profiles to carry optional blockchain identity metadata.
+- Added a peer-vouching system where verified users can vouch for other peers instead of relying on a centralized identity authority.
+- Signed each vouch cryptographically and verified incoming vouches before accepting them.
+- Stored vouches locally in IndexedDB so trust state persists across refreshes.
+- Updated the gossip layer to propagate both signed profiles and signed trust vouches across the P2P network.
+- Rejected invalid or expired profiles and rejected invalid blockchain identity claims.
+- Computed a trust score from wallet/ENS verification plus verified peer vouches.
+- Blended trust score into match ranking so peers are ordered by both taste similarity and trust.
+- Updated the match feed UI to show trust labels, trust percentage, wallet/ENS anchor, and vouch counts.
+- Added a Vouch action in the match cards for wallet-verified users.
+- Added trust status to the chat header so users can see who they are talking to.
+- Added the ethers dependency to support wallet signatures and ENS resolution.
+
 ### Running Locally
 
 ```bash

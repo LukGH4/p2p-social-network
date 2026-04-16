@@ -161,6 +161,12 @@ textarea {
   color: #666;
 }
 
+.field-hint {
+  color: #777;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .form-actions {
   display: flex;
   gap: 10px;
@@ -181,6 +187,25 @@ textarea {
   flex-direction: column;
   gap: 20px;
   margin-top: 4px;
+}
+
+.blockchain-field {
+  padding: 16px;
+  border: 1px solid #262626;
+  border-radius: 10px;
+  background: #141414;
+}
+
+.wallet-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.wallet-status {
+  color: #a5a0ff;
+  font-size: 13px;
 }
 
 .tag-group {
@@ -289,6 +314,11 @@ textarea {
   margin-bottom: 20px;
 }
 
+.feed-subtitle {
+  color: #777;
+  margin: -10px 0 20px;
+}
+
 .empty-state {
   text-align: center;
   padding: 60px 20px;
@@ -354,6 +384,13 @@ textarea {
   gap: 12px;
 }
 
+.card-metrics {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
 .avatar {
   width: 40px;
   height: 40px;
@@ -386,15 +423,49 @@ textarea {
 }
 
 .card-score {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: #6c63ff;
   flex-shrink: 0;
 }
 
+.trust-pill {
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 600;
+}
+
+.trust-high {
+  background: rgba(52, 211, 153, 0.14);
+  color: #6ee7b7;
+}
+
+.trust-medium {
+  background: rgba(250, 204, 21, 0.14);
+  color: #fde68a;
+}
+
+.trust-low {
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+}
+
 .shared-tags {
   font-size: 13px;
   color: #777;
+}
+
+.trust-details,
+.trust-reasons {
+  font-size: 13px;
+  color: #8b8b8b;
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* ---- Chat ---- */
@@ -416,9 +487,20 @@ textarea {
   flex-shrink: 0;
 }
 
+.chat-header-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .chat-peer-name {
   font-weight: 600;
   color: #eee;
+}
+
+.chat-peer-trust {
+  color: #777;
+  font-size: 13px;
 }
 
 .chat-messages {

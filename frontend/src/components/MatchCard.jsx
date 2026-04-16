@@ -1,4 +1,5 @@
 import { INTEREST_SCHEMA } from '../schema/interestSchema'
+import { formatWalletAddress } from '../lib/blockchain'
 
 function sharedTags(myTags, peerTags) {
   const shared = []
@@ -24,8 +25,11 @@ function sharedTags(myTags, peerTags) {
  */
 export default function MatchCard({ match, myTags, connectionState = 'none', onConnect, onAccept, onDecline, onChat }) {
   const { username, bio, score, tags } = match
+
   const pct = Math.round(score * 100)
   const common = sharedTags(myTags, tags)
+  const trustPct = Math.round((trust?.score ?? 0) * 100)
+  const anchor = trust?.ensName || formatWalletAddress(trust?.walletAddress)
 
   function renderActions() {
     switch (connectionState) {
@@ -66,7 +70,12 @@ export default function MatchCard({ match, myTags, connectionState = 'none', onC
           <span className="card-username">{username}</span>
           {bio && <span className="card-bio">{bio}</span>}
         </div>
-        <span className="card-score">{pct}%</span>
+        <div className="card-metrics">
+          <span className="card-score">{pct}% Match</span>
+          <span className={`trust-pill trust-${trust?.level ?? 'low'}`}>
+            {trustPct}% Trust
+          </span>
+        </div>
       </div>
 
       {common.length > 0 && (
@@ -76,6 +85,7 @@ export default function MatchCard({ match, myTags, connectionState = 'none', onC
       )}
 
       {renderActions()}
+
     </div>
   )
 }

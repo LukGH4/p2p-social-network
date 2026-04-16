@@ -318,6 +318,7 @@ export async function initGossipNetwork(localProfile) {
   })
 
   // Re-broadcast every 5s so late-joiners see us quickly
+
   timers.push(setInterval(() => {
     if (myProfile) broadcastProfile(myProfile)
   }, 5_000))
@@ -328,6 +329,7 @@ export async function initGossipNetwork(localProfile) {
     for (const [peerId, profile] of peersCache.entries()) {
       if (isProfileExpired(profile)) {
         peersCache.delete(peerId)
+        trustCache.delete(peerId)
         changed = true
       }
     }

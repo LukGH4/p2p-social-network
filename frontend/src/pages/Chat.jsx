@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 import { sendMessage, onMessage } from '../lib/p2pBridge'
+
 import { getKnownProfiles, getConnectionState, getMyPeerId } from '../lib/gossipBridge'
 import { getMessages, saveMessage } from '../lib/db'
 
@@ -15,6 +15,8 @@ export default function Chat() {
 
   const peer = getKnownProfiles().find(p => p.peerId === peerId)
   const peerName = peer?.username || peerId?.slice(0, 8)
+  const trust = getPeerTrust(peerId)
+  const trustAnchor = trust?.ensName || formatWalletAddress(trust?.walletAddress)
 
   const connState = getConnectionState(peerId)
   if (connState !== 'connected') {
@@ -107,7 +109,13 @@ function ChatWindow({ peerId, peerName, navigate }) {
     <div className="chat-page">
       <header className="chat-header">
         <button className="btn-ghost" onClick={() => navigate('/feed')}>← Back</button>
-        <span className="chat-peer-name">{peerName}</span>
+        <div className="chat-header-copy">
+          <span className="chat-peer-name">{peerName}</span>
+          <span className="chat-peer-trust">
+            {trust?.label}
+            {trustAnchor ? ` • ${trustAnchor}` : ''}
+          </span>
+        </div>
       </header>
 
       <div className="chat-messages">
