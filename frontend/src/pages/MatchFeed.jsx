@@ -2,7 +2,17 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getMatches } from '../lib/matchingBridge'
-import { getKnownProfiles, onPeerProfile, getNetworkStatus, onNetworkStatusChange } from '../lib/gossipBridge'
+import {
+  getKnownProfiles,
+  onPeerProfile,
+  getNetworkStatus,
+  onNetworkStatusChange,
+  getConnectionState,
+  onConnectionChange,
+  sendConnectionRequest,
+  acceptConnection,
+  declineConnection,
+} from '../lib/gossipBridge'
 import MatchCard from '../components/MatchCard'
 
 export default function MatchFeed() {
@@ -10,6 +20,8 @@ export default function MatchFeed() {
   const navigate = useNavigate()
   const [matches, setMatches] = useState([])
   const [netStatus, setNetStatus] = useState(getNetworkStatus())
+  // tick forces re-render when connection state changes (state lives in gossipBridge module)
+  const [, setConnTick] = useState(0)
 
   function refresh(peers) {
     setMatches(getMatches(user, peers))
@@ -26,9 +38,14 @@ export default function MatchFeed() {
       setNetStatus(getNetworkStatus())
     })
 
+    const unsubConn = onConnectionChange(() => {
+      setConnTick(t => t + 1)
+    })
+
     return () => {
       unsubProfiles()
       unsubStatus()
+      unsubConn()
     }
   }, [])
 
@@ -39,6 +56,8 @@ export default function MatchFeed() {
     if (status === 'connected')  return <p className="net-status net-status--ok">{statusMessage || 'Connected'}</p>
     return null
   }
+
+  const pendingRequests = matches.filter(m => getConnectionState(m.peerId) === 'received')
 
   return (
     <div className="feed-page">
@@ -51,6 +70,14 @@ export default function MatchFeed() {
       </header>
 
       {statusBar()}
+
+      {pendingRequests.length > 0 && (
+        <div className="pending-banner">
+          {pendingRequests.length === 1
+            ? `${pendingRequests[0].username} wants to connect with you!`
+            : `${pendingRequests.length} people want to connect with you!`}
+        </div>
+      )}
 
       <div className="feed-body">
         <p className="welcome">Hey {user?.username}, here are your matches.</p>
@@ -67,7 +94,11 @@ export default function MatchFeed() {
                 key={match.peerId}
                 match={match}
                 myTags={user?.tags}
-                onConnect={() => navigate(`/chat/${match.peerId}`)}
+                connectionState={getConnectionState(match.peerId)}
+                onConnect={() => sendConnectionRequest(match.peerId)}
+                onAccept={() => acceptConnection(match.peerId)}
+                onDecline={() => declineConnection(match.peerId)}
+                onChat={() => navigate(`/chat/${match.peerId}`)}
               />
             ))}
           </div>
