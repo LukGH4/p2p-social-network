@@ -1,4 +1,5 @@
 import { INTEREST_SCHEMA } from '../schema/interestSchema'
+import { formatWalletAddress } from '../lib/blockchain'
 
 function sharedTags(myTags, peerTags) {
   const shared = []
@@ -12,10 +13,12 @@ function sharedTags(myTags, peerTags) {
   return shared
 }
 
-export default function MatchCard({ match, myTags, onConnect }) {
-  const { username, bio, score, tags } = match
+export default function MatchCard({ match, myTags, onConnect, onVouch, canVouch, hasVouched }) {
+  const { username, bio, score, tags, trust } = match
   const pct = Math.round(score * 100)
   const common = sharedTags(myTags, tags)
+  const trustPct = Math.round((trust?.score ?? 0) * 100)
+  const anchor = trust?.ensName || formatWalletAddress(trust?.walletAddress)
 
   return (
     <div className="match-card">
@@ -25,7 +28,12 @@ export default function MatchCard({ match, myTags, onConnect }) {
           <span className="card-username">{username}</span>
           {bio && <span className="card-bio">{bio}</span>}
         </div>
-        <span className="card-score">{pct}%</span>
+        <div className="card-metrics">
+          <span className="card-score">{pct}% Match</span>
+          <span className={`trust-pill trust-${trust?.level ?? 'low'}`}>
+            {trustPct}% Trust
+          </span>
+        </div>
       </div>
 
       {common.length > 0 && (
@@ -34,9 +42,28 @@ export default function MatchCard({ match, myTags, onConnect }) {
         </p>
       )}
 
-      <button className="btn-primary btn-sm" onClick={onConnect}>
-        Connect
-      </button>
+      <p className="trust-details">
+        {trust?.label}
+        {anchor ? ` • ${anchor}` : ''}
+        {trust?.vouchCount ? ` • ${trust.vouchCount} peer vouch${trust.vouchCount === 1 ? '' : 'es'}` : ''}
+      </p>
+
+      {trust?.reasons?.length > 0 && (
+        <p className="trust-reasons">{trust.reasons.join(' • ')}</p>
+      )}
+
+      <div className="card-actions">
+        <button className="btn-primary btn-sm" onClick={onConnect}>
+          Connect
+        </button>
+        <button
+          className="btn-secondary btn-sm"
+          onClick={onVouch}
+          disabled={!onVouch || !canVouch || hasVouched}
+        >
+          {hasVouched ? 'Vouched' : 'Vouch'}
+        </button>
+      </div>
     </div>
   )
 }

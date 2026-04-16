@@ -33,6 +33,11 @@ async function loadOrCreateKeypair() {
   return keypair
 }
 
+export async function getOrCreateIdentityMaterial() {
+  const { publicKeyBase64 } = await loadOrCreateKeypair()
+  return { publicKeyBase64 }
+}
+
 export async function signProfile(unsigned, privateKey) {
   const payload = serializePayload(unsigned)
   const signature = await signPayload(payload, privateKey)
@@ -65,6 +70,7 @@ export async function createProfile(formData, peerId) {
     bio: formData.bio.trim(),
     tags: tagsToProfile(formData.selectedTags),
     publicKey: publicKeyBase64,
+    blockchainIdentity: formData.blockchainIdentity ?? null,
   }
 
   const unsigned = createTTLProfile(base)

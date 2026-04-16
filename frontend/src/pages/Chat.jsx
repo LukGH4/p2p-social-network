@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 import { sendMessage, onMessage } from '../lib/p2pBridge'
-import { getKnownProfiles } from '../lib/gossipBridge'
+import { formatWalletAddress } from '../lib/blockchain'
+import { getKnownProfiles, getPeerTrust } from '../lib/gossipBridge'
 
 export default function Chat() {
   const { peerId } = useParams()
-  const { user } = useAuth()
   const navigate = useNavigate()
   const bottomRef = useRef(null)
 
@@ -15,6 +14,8 @@ export default function Chat() {
 
   const peer = getKnownProfiles().find(p => p.peerId === peerId)
   const peerName = peer?.username || peerId?.slice(0, 8)
+  const trust = getPeerTrust(peerId)
+  const trustAnchor = trust?.ensName || formatWalletAddress(trust?.walletAddress)
 
   useEffect(() => {
     const unsub = onMessage(msg => {
@@ -40,7 +41,13 @@ export default function Chat() {
     <div className="chat-page">
       <header className="chat-header">
         <button className="btn-ghost" onClick={() => navigate('/feed')}>← Back</button>
-        <span className="chat-peer-name">{peerName}</span>
+        <div className="chat-header-copy">
+          <span className="chat-peer-name">{peerName}</span>
+          <span className="chat-peer-trust">
+            {trust?.label}
+            {trustAnchor ? ` • ${trustAnchor}` : ''}
+          </span>
+        </div>
       </header>
 
       <div className="chat-messages">

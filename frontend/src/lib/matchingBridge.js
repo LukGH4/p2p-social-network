@@ -37,6 +37,26 @@ export function getMatches(myProfile, peers) {
   const myVec = toVector(myProfile)
   return peers
     .filter(p => p.tags && p.peerId !== myProfile.peerId)
-    .map(p => ({ ...p, score: cosine(myVec, toVector(p)) }))
-    .sort((a, b) => b.score - a.score)
+    .map(p => {
+      const trust = p.trust ?? {
+        score: 0,
+        level: 'low',
+        label: 'Unverified',
+        reasons: [],
+        vouchCount: 0,
+        walletAddress: null,
+        ensName: null,
+        identityVerified: false,
+      }
+      const compatibilityScore = cosine(myVec, toVector(p))
+      const overallScore = (compatibilityScore * 0.85) + (trust.score * 0.15)
+
+      return {
+        ...p,
+        score: compatibilityScore,
+        overallScore,
+        trust,
+      }
+    })
+    .sort((a, b) => b.overallScore - a.overallScore)
 }
