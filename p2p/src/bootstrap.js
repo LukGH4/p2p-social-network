@@ -5,7 +5,7 @@ import { identify } from '@libp2p/identify'
 import { lpStream } from '@libp2p/utils'
 import { webSockets } from '@libp2p/websockets'
 import { createLibp2p } from 'libp2p'
-import { DISCOVERY_PROTOCOL } from './network.js'
+import { BROADCAST_PROTOCOL, DISCOVERY_PROTOCOL, RAW_PROTOCOL } from './network.js'
 
 const STALE_PEER_MS = 30_000
 
@@ -51,16 +51,11 @@ const node = await createLibp2p({
   services: {
     identify: identify(),
     relay: circuitRelayServer({
-      services: {
-    identify: identify(),
-    relay: circuitRelayServer({
       reservations: {
         maxReservations: 100,
         maxReservationsPerIP: 100,
         applyDefaultLimit: false
       }
-    })
-  }
     })
   }
 })
@@ -91,6 +86,30 @@ node.handle(DISCOVERY_PROTOCOL, async (stream) => {
   }))
 
   await channel.write(encodeJson({ peers }))
+  await stream.close()
+})
+
+// handler(stream, connection) — two separate args per libp2p v3 API
+node.handle(BROADCAST_PROTOCOL, async (stream, connection) => {
+  const channel = lpStream(stream)
+  const chunk = await channel.read()
+  if (!chunk) {
+    await stream.close()
+    return
+  }
+  const payload = decodeChunk(chunk)
+  const senderPeerId = connection.remotePeer
+  for (const peerId of node.getPeers()) {
+    if (peerId.equals(senderPeerId)) continue
+    try {
+      const outStream = await node.dialProtocol(peerId, RAW_PROTOCOL)
+      const outChannel = lpStream(outStream)
+      await outChannel.write(encodeJson(payload))
+      await outStream.close()
+    } catch (err) {
+      console.error(`[broadcast] forward to ${peerId} failed:`, err.message)
+    }
+  }
   await stream.close()
 })
 

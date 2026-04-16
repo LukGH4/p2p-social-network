@@ -4,10 +4,14 @@ import { useAuth } from '../context/AuthContext'
 import { getMatches } from '../lib/matchingBridge'
 import {
   getKnownProfiles,
-  getPeerTrust,
-  hasVouchedForPeer,
   onPeerProfile,
-  vouchForPeer,
+  getNetworkStatus,
+  onNetworkStatusChange,
+  getConnectionState,
+  onConnectionChange,
+  sendConnectionRequest,
+  acceptConnection,
+  declineConnection,
 } from '../lib/gossipBridge'
 import MatchCard from '../components/MatchCard'
 
@@ -24,8 +28,10 @@ function buildRankedMatches(user, peers) {
 export default function MatchFeed() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const [matches, setMatches] = useState(() => buildRankedMatches(user, getKnownProfiles()))
-  const [trustError, setTrustError] = useState('')
+  const [matches, setMatches] = useState([])
+  const [netStatus, setNetStatus] = useState(getNetworkStatus())
+  // tick forces re-render when connection state changes (state lives in gossipBridge module)
+  const [, setConnTick] = useState(0)
 
   async function handleVouch(peerId) {
     setTrustError('')
@@ -40,12 +46,36 @@ export default function MatchFeed() {
   }
 
   useEffect(() => {
-    const unsub = onPeerProfile(() => {
-      setMatches(buildRankedMatches(user, getKnownProfiles()))
+    refresh(getKnownProfiles())
+
+    const unsubProfiles = onPeerProfile(() => {
+      refresh(getKnownProfiles())
     })
 
-    return unsub
-  }, [user])
+    const unsubStatus = onNetworkStatusChange(() => {
+      setNetStatus(getNetworkStatus())
+    })
+
+    const unsubConn = onConnectionChange(() => {
+      setConnTick(t => t + 1)
+    })
+
+    return () => {
+      unsubProfiles()
+      unsubStatus()
+      unsubConn()
+    }
+  }, [])
+
+  function statusBar() {
+    const { status, statusMessage } = netStatus
+    if (status === 'connecting') return <p className="net-status net-status--connecting">Connecting to network...</p>
+    if (status === 'error')      return <p className="net-status net-status--error">Network error — is the bootstrap running? ({statusMessage})</p>
+    if (status === 'connected')  return <p className="net-status net-status--ok">{statusMessage || 'Connected'}</p>
+    return null
+  }
+
+  const pendingRequests = matches.filter(m => getConnectionState(m.peerId) === 'received')
 
   return (
     <div className="feed-page">
@@ -56,6 +86,16 @@ export default function MatchFeed() {
           <button className="btn-ghost" onClick={() => { logout(); navigate('/') }}>Sign Out</button>
         </div>
       </header>
+
+      {statusBar()}
+
+      {pendingRequests.length > 0 && (
+        <div className="pending-banner">
+          {pendingRequests.length === 1
+            ? `${pendingRequests[0].username} wants to connect with you!`
+            : `${pendingRequests.length} people want to connect with you!`}
+        </div>
+      )}
 
       <div className="feed-body">
         <p className="welcome">Hey {user?.username}, here are your matches.</p>
@@ -76,10 +116,11 @@ export default function MatchFeed() {
                 key={match.peerId}
                 match={match}
                 myTags={user?.tags}
-                canVouch={Boolean(user?.blockchainIdentity?.walletSignature)}
-                hasVouched={hasVouchedForPeer(match.peerId)}
-                onConnect={() => navigate(`/chat/${match.peerId}`)}
-                onVouch={() => handleVouch(match.peerId)}
+                connectionState={getConnectionState(match.peerId)}
+                onConnect={() => sendConnectionRequest(match.peerId)}
+                onAccept={() => acceptConnection(match.peerId)}
+                onDecline={() => declineConnection(match.peerId)}
+                onChat={() => navigate(`/chat/${match.peerId}`)}
               />
             ))}
           </div>

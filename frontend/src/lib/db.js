@@ -3,14 +3,24 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'findyourpeer-db'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 function getDB() {
   return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains('profiles')) db.createObjectStore('profiles')
-      if (!db.objectStoreNames.contains('keypairs')) db.createObjectStore('keypairs')
-      if (!db.objectStoreNames.contains('vouches')) db.createObjectStore('vouches')
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        if (!db.objectStoreNames.contains('profiles')) db.createObjectStore('profiles')
+        if (!db.objectStoreNames.contains('keypairs')) db.createObjectStore('keypairs')
+      }
+      if (oldVersion < 2) {
+        if (!db.objectStoreNames.contains('connections')) db.createObjectStore('connections')
+      }
+      if (oldVersion < 3) {
+        if (!db.objectStoreNames.contains('messages')) {
+          const msgStore = db.createObjectStore('messages', { keyPath: 'id', autoIncrement: true })
+          msgStore.createIndex('by_conversation', 'conversationId')
+        }
+      }
     },
   })
 }
@@ -49,19 +59,35 @@ export async function deleteKeypair() {
   await db.delete('keypairs', 'myKeypair')
 }
 
-// Trust vouch store
+// Connections store — persists mutually-accepted peer connections across reloads
 
-export async function saveVouch(vouch) {
+export async function saveConnection(peerId) {
   const db = await getDB()
-  await db.put('vouches', vouch, vouch.id)
+  await db.put('connections', { peerId, connectedAt: Date.now() }, peerId)
 }
 
-export async function getVouches() {
+export async function deleteConnection(peerId) {
   const db = await getDB()
-  return (await db.getAll('vouches')) ?? []
+  await db.delete('connections', peerId)
 }
 
-export async function deleteVouch(id) {
+export async function getConnections() {
   const db = await getDB()
-  await db.delete('vouches', id)
+  return db.getAll('connections')
+}
+
+// Messages store — persists chat messages across navigation and reloads
+// conversationId = [peerA, peerB].sort().join('|')
+// sender: 'me' | 'peer'
+
+export async function saveMessage(conversationId, { sender, from, text, time }) {
+  const db = await getDB()
+  await db.add('messages', { conversationId, sender, from, text, time })
+}
+
+export async function getMessages(conversationId) {
+  const db = await getDB()
+  const all = await db.getAllFromIndex('messages', 'by_conversation', conversationId)
+  // Sort by time ascending (IDB doesn't guarantee order)
+  return all.sort((a, b) => a.time - b.time)
 }

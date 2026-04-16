@@ -56,6 +56,12 @@ input, textarea {
   border: 1px solid #333;
 }
 
+.btn-secondary:disabled,
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .btn-ghost {
   background: none;
   color: #999;
@@ -242,6 +248,30 @@ textarea {
   font-weight: 500;
 }
 
+/* ---- Network status bar ---- */
+
+.net-status {
+  text-align: center;
+  font-size: 13px;
+  padding: 6px 16px;
+  margin: 0;
+}
+
+.net-status--connecting {
+  background: #1e1a00;
+  color: #f59e0b;
+}
+
+.net-status--error {
+  background: #1e0000;
+  color: #f87171;
+}
+
+.net-status--ok {
+  background: #001a0d;
+  color: #4ade80;
+}
+
 /* ---- Feed ---- */
 
 .feed-page {
@@ -318,6 +348,34 @@ textarea {
 
 .match-card:hover {
   border-color: #3a3a3a;
+}
+
+.match-card--connected {
+  border-color: rgba(108, 99, 255, 0.35);
+}
+
+.connection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.connection-label {
+  font-size: 12px;
+  color: #a5a0ff;
+  flex: 1;
+}
+
+/* ---- Pending requests banner ---- */
+
+.pending-banner {
+  background: rgba(108, 99, 255, 0.15);
+  border-bottom: 1px solid rgba(108, 99, 255, 0.3);
+  color: #a5a0ff;
+  font-size: 14px;
+  padding: 10px 24px;
+  text-align: center;
 }
 
 .card-top {
@@ -494,22 +552,82 @@ textarea {
   flex: 1;
 }
 
-@media (max-width: 640px) {
-  .card-top {
-    align-items: flex-start;
-  }
+/* ---- Toast notifications ---- */
 
-  .card-metrics {
-    align-items: flex-start;
-  }
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
 
-  .form-actions {
-    flex-direction: column;
-  }
+.toast {
+  background: #1e1e1e;
+  border: 1px solid rgba(108, 99, 255, 0.5);
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-width: 260px;
+  max-width: 320px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: all;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: toast-in 0.25s ease;
+}
 
-  .form-actions button,
-  .card-actions button,
-  .wallet-actions button {
-    width: 100%;
-  }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.toast-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toast-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(108, 99, 255, 0.25);
+  color: #a5a0ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 14px;
+  color: #ccc;
+  line-height: 1.4;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
+.toast-close:hover {
+  color: #aaa;
+}
+
+.toast-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
