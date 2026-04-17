@@ -63,7 +63,9 @@ function convertProfileToVector(profile) {
 
     for (var i = 0; i < GENRE_TAGS.length; i++) {
         var currentGenreTag = GENRE_TAGS[i];
+        // If we dont have a profile tag when we set the value to 0
         var userGenreValue = profile.tags.genre[currentGenreTag] || 0;
+        // We are making the vector with the weights applied
         fullVector.push(userGenreValue * CATEGORY_WEIGHTS.genre);
     }
 
