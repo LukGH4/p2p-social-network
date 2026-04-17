@@ -27,7 +27,6 @@ function decodeChunk(chunk) {
 // We want to be abel to remove / prune all of the peers that have been non active for too long
 function pruneRegistry() {
   const cutoff = Date.now() - STALE_PEER_MS
-
   for (const [peerId, entry] of registry.entries()) {
     if (entry.lastSeen < cutoff) {
       registry.delete(peerId)
@@ -41,17 +40,11 @@ const node = await createLibp2p({
   addresses: {
     listen: ['/ip4/0.0.0.0/tcp/4012/ws']
   },
-  transports: [
-    webSockets()
-  ],
-  connectionEncrypters: [
-    noise()
-  ],
-  streamMuxers: [
-    yamux()
-  ],
+  transports: [webSockets()],
+  connectionEncrypters: [noise()],
+  streamMuxers: [yamux()],
   connectionGater: {
-    denyDialMultiaddr: async () => false, 
+    denyDialMultiaddr: async () => false,
   },
   services: {
     identify: identify(),
@@ -66,26 +59,14 @@ const node = await createLibp2p({
 })
 
 node.addEventListener('peer:connect', (evt) => {
-  try {
-    const remotePeer = evt?.detail?.remotePeer ?? evt?.detail
-    if (remotePeer && typeof remotePeer.toString === 'function') {
-      // For our record wee are keeping track of all of the peers that we have connected 
-      connectedPeers.add(remotePeer.toString())
-    }
-  } catch (err) {
-    console.warn('[bootstrap] peer:connect error:', err.message)
-  }
+  const id = (evt.detail?.remotePeer ?? evt.detail).toString()
+  // For our record wee are keeping track of all of the peers that we have connected
+  connectedPeers.add(id)
 })
 
 node.addEventListener('peer:disconnect', (evt) => {
-  try {
-    const remotePeer = evt?.detail?.remotePeer ?? evt?.detail
-    if (remotePeer && typeof remotePeer.toString === 'function') {
-      connectedPeers.delete(remotePeer.toString())
-    }
-  } catch (err) {
-    console.warn('[bootstrap] peer:disconnect error:', err.message)
-  }
+  const id = (evt.detail?.remotePeer ?? evt.detail).toString()
+  connectedPeers.delete(id)
 })
 
 // We are using handle to take care of when peers join so we can send out a list of the peers taht are available
