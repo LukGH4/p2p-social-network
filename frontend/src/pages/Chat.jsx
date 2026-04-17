@@ -2,7 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { sendMessage, onMessage } from '../lib/p2pBridge'
 import { formatWalletAddress } from '../lib/blockchain'
-import { getKnownProfiles, getConnectionState, getMyPeerId } from '../lib/gossipBridge'
+import {
+  getKnownProfiles,
+  getConnectionState,
+  getMyPeerId,
+  onConnectionChange,
+  onPeerProfile,
+} from '../lib/gossipBridge'
 import { getMessages, saveMessage } from '../lib/db'
 
 function makeConvId(a, b) {
@@ -12,6 +18,16 @@ function makeConvId(a, b) {
 export default function Chat() {
   const { peerId } = useParams()
   const navigate = useNavigate()
+  const [, setSync] = useState(0)
+
+  useEffect(() => {
+    const unsubConn = onConnectionChange(() => setSync(n => n + 1))
+    const unsubProfiles = onPeerProfile(() => setSync(n => n + 1))
+    return () => {
+      unsubConn()
+      unsubProfiles()
+    }
+  }, [])
 
   const peer = getKnownProfiles().find(p => p.peerId === peerId)
   const peerName = peer?.username || peerId?.slice(0, 8)
@@ -39,10 +55,18 @@ export default function Chat() {
     )
   }
 
-  return <ChatWindow peerId={peerId} peerName={peerName} trust={trust} navigate={navigate} />
+  return (
+    <ChatWindow
+      peerId={peerId}
+      peerName={peerName}
+      trust={trust}
+      trustAnchor={trustAnchor}
+      navigate={navigate}
+    />
+  )
 }
 
-function ChatWindow({ peerId, peerName, trust, navigate }) {
+function ChatWindow({ peerId, peerName, trust, trustAnchor, navigate }) {
   const bottomRef = useRef(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')

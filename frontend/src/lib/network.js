@@ -172,16 +172,24 @@ export class P2PNetwork {
 
   async sendToNetwork(payload) {
     // Route through bootstrap — avoids NO_RESERVATION circuit relay failures on same-machine testing
-    if (this.bootstrapAddr && this.bootstrapPeerId) {
-      try {
-        const bootstrapMa = multiaddr(`${this.bootstrapAddr}/p2p/${this.bootstrapPeerId}`)
-        const stream = await this.node.dialProtocol(bootstrapMa, BROADCAST_PROTOCOL)
-        const channel = lpStream(stream)
-        await channel.write(encodeJson(payload))
-        await stream.close()
-        return
-      } catch (err) {
-        console.warn('[p2p] broadcast via bootstrap failed, trying direct:', err.message)
+    const bootstrapAttempts = 3
+    for (let i = 0; i < bootstrapAttempts; i++) {
+      if (this.bootstrapAddr && this.bootstrapPeerId) {
+        try {
+          const bootstrapMa = multiaddr(`${this.bootstrapAddr}/p2p/${this.bootstrapPeerId}`)
+          const stream = await this.node.dialProtocol(bootstrapMa, BROADCAST_PROTOCOL)
+          const channel = lpStream(stream)
+          await channel.write(encodeJson(payload))
+          await stream.close()
+          return
+        } catch (err) {
+          if (i === bootstrapAttempts - 1) {
+            console.warn('[p2p] broadcast via bootstrap failed after retries, trying direct:', err.message)
+          }
+          await delay(120 * (i + 1))
+        }
+      } else {
+        break
       }
     }
 

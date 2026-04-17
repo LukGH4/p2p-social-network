@@ -36,7 +36,9 @@ function cosine(a, b) {
 export function getMatches(myProfile, peers) {
   const myVec = toVector(myProfile)
   return peers
-    .filter(p => p.tags && p.peerId !== myProfile.peerId)
+    // Include every discovered peer (missing tags → zero vector), so connection
+    // requests always surface a card with Accept / Decline / Chat actions.
+    .filter(p => p.peerId !== myProfile.peerId)
     .map(p => {
       const trust = p.trust ?? {
         score: 0,

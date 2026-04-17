@@ -29,10 +29,20 @@ export default function MatchFeed() {
   const [, setConnTick] = useState(0)
 
   function refresh(peers) {
-    setMatches(buildRankedMatches(user, peers))
+    const list = buildRankedMatches(user, peers)
+    // Pending inbound requests first so Accept / Decline are obvious during demo
+    list.sort((a, b) => {
+      const ra = getConnectionState(a.peerId) === 'received'
+      const rb = getConnectionState(b.peerId) === 'received'
+      if (ra !== rb) return ra ? -1 : 1
+      return (b.overallScore ?? 0) - (a.overallScore ?? 0)
+    })
+    setMatches(list)
   }
 
   useEffect(() => {
+    if (!user) return
+
     refresh(getKnownProfiles())
 
     const unsubProfiles = onPeerProfile(() => {
@@ -45,6 +55,7 @@ export default function MatchFeed() {
 
     const unsubConn = onConnectionChange(() => {
       setConnTick(t => t + 1)
+      refresh(getKnownProfiles())
     })
 
     return () => {
@@ -52,7 +63,7 @@ export default function MatchFeed() {
       unsubStatus()
       unsubConn()
     }
-  }, [])
+  }, [user])
 
   function statusBar() {
     const { status, statusMessage } = netStatus

@@ -55,6 +55,54 @@ function makeConvId(peerA, peerB) {
   return [peerA, peerB].sort().join('|')
 }
 
+/** Application peer ids (UUID strings) must match reliably across messages. */
+function peerIdsEqual(a, b) {
+  if (a == null || b == null) return false
+  return String(a) === String(b)
+}
+
+/**
+ * Best-effort duplicate sends so the other browser still receives control messages
+ * if the first bootstrap broadcast is flaky (requester stuck on "Request sent").
+ */
+function scheduleRedundantControlSend(payload) {
+  const delays = [450, 1300]
+  for (const ms of delays) {
+    setTimeout(() => {
+      if (!network) return
+      network.sendToNetwork(payload).catch(() => {})
+    }, ms)
+  }
+}
+
+/**
+ * Re-send a pending CONNECTION_REQUEST (state === 'sent').
+ * `sendConnectionRequest` refuses to send again while 'sent', which leaves two
+ * peers stuck on "Request sent" if the first broadcasts never cross (common when
+ * both click Connect at once on the same machine). We retry on a timer and when
+ * we see the peer's profile gossip so at least one request is delivered — then
+ * either the recipient shows Accept/Decline or the simultaneous-send path connects both.
+ */
+async function resendPendingConnectionRequest(toPeerId) {
+  if (!network || !myProfile) return
+  if (connectionState.get(toPeerId) !== 'sent') return
+  const payload = {
+    type: 'CONNECTION_REQUEST',
+    to: toPeerId,
+    from: myProfile.peerId,
+    fromUsername: myProfile.username,
+  }
+  await network.sendToNetwork(payload)
+  scheduleRedundantControlSend(payload)
+}
+
+function flushPendingOutgoingRequests() {
+  for (const [peerId, state] of connectionState.entries()) {
+    if (state !== 'sent') continue
+    resendPendingConnectionRequest(peerId).catch(() => {})
+  }
+}
+
 // ── Exports: network status ─────────────────────────────────────────────────
 
 export function getNetworkStatus() {
@@ -102,12 +150,14 @@ export async function sendConnectionRequest(toPeerId) {
   if (current === 'connected' || current === 'sent') return
   connectionState.set(toPeerId, 'sent')
   notifyConnectionListeners()
-  await network.sendToNetwork({
+  const payload = {
     type: 'CONNECTION_REQUEST',
     to: toPeerId,
     from: myProfile.peerId,
     fromUsername: myProfile.username,
-  })
+  }
+  await network.sendToNetwork(payload)
+  scheduleRedundantControlSend(payload)
 }
 
 export async function acceptConnection(fromPeerId) {
@@ -115,11 +165,13 @@ export async function acceptConnection(fromPeerId) {
   connectionState.set(fromPeerId, 'connected')
   await saveConnection(fromPeerId)
   notifyConnectionListeners()
-  await network.sendToNetwork({
+  const payload = {
     type: 'CONNECTION_ACCEPT',
     to: fromPeerId,
     from: myProfile.peerId,
-  })
+  }
+  await network.sendToNetwork(payload)
+  scheduleRedundantControlSend(payload)
 }
 
 export async function declineConnection(fromPeerId) {
@@ -127,11 +179,13 @@ export async function declineConnection(fromPeerId) {
   connectionState.delete(fromPeerId)
   await deleteConnection(fromPeerId)
   notifyConnectionListeners()
-  await network.sendToNetwork({
+  const payload = {
     type: 'CONNECTION_DECLINE',
     to: fromPeerId,
     from: myProfile.peerId,
-  })
+  }
+  await network.sendToNetwork(payload)
+  scheduleRedundantControlSend(payload)
 }
 
 // ── Exports: messaging ──────────────────────────────────────────────────────
@@ -229,19 +283,24 @@ export async function initGossipNetwork(localProfile) {
   network.onMessage(async (msg, from) => {
     // ── Connection request ─────────────────────────────────────────────────
     if (msg.type === 'CONNECTION_REQUEST') {
-      if (msg.to === myProfile?.peerId) {
+      if (peerIdsEqual(msg.to, myProfile?.peerId)) {
         const existing = connectionState.get(msg.from)
         if (existing === 'sent') {
           // Both sides sent simultaneously — auto-connect
           connectionState.set(msg.from, 'connected')
           await saveConnection(msg.from)
-          await network.sendToNetwork({ type: 'CONNECTION_ACCEPT', to: msg.from, from: myProfile.peerId })
-        } else if (existing !== 'connected') {
+          const autoAccept = { type: 'CONNECTION_ACCEPT', to: msg.from, from: myProfile.peerId }
+          await network.sendToNetwork(autoAccept)
+          scheduleRedundantControlSend(autoAccept)
+        } else if (existing === 'connected') {
+          // Duplicate delivery — ignore
+        } else if (existing === 'received') {
+          // Duplicate request — already showing Accept / Decline
+        } else {
           connectionState.set(msg.from, 'received')
-          // Notify toast/notification listeners
           requestListeners.forEach(cb => cb({
             fromPeerId: msg.from,
-            fromUsername: msg.fromUsername || msg.from.slice(0, 8),
+            fromUsername: msg.fromUsername || String(msg.from).slice(0, 8),
           }))
         }
         notifyConnectionListeners()
@@ -251,7 +310,7 @@ export async function initGossipNetwork(localProfile) {
 
     // ── Connection accept ──────────────────────────────────────────────────
     if (msg.type === 'CONNECTION_ACCEPT') {
-      if (msg.to === myProfile?.peerId) {
+      if (peerIdsEqual(msg.to, myProfile?.peerId)) {
         connectionState.set(msg.from, 'connected')
         await saveConnection(msg.from)
         notifyConnectionListeners()
@@ -261,7 +320,7 @@ export async function initGossipNetwork(localProfile) {
 
     // ── Connection decline ─────────────────────────────────────────────────
     if (msg.type === 'CONNECTION_DECLINE') {
-      if (msg.to === myProfile?.peerId) {
+      if (peerIdsEqual(msg.to, myProfile?.peerId)) {
         connectionState.delete(msg.from)
         await deleteConnection(msg.from)
         notifyConnectionListeners()
@@ -271,8 +330,8 @@ export async function initGossipNetwork(localProfile) {
 
     // ── Direct chat message ────────────────────────────────────────────────
     if (msg.type === 'DIRECT_MESSAGE') {
-      console.log('[gossip] DM received → to:', msg.to, '| myPeerId:', myProfile?.peerId, '| match:', msg.to === myProfile?.peerId)
-      if (msg.to === myProfile?.peerId) {
+      console.log('[gossip] DM received → to:', msg.to, '| myPeerId:', myProfile?.peerId, '| match:', peerIdsEqual(msg.to, myProfile?.peerId))
+      if (peerIdsEqual(msg.to, myProfile?.peerId)) {
         const time = msg.time ?? Date.now()
         const msgObj = { sender: 'peer', from: msg.from, text: msg.text, time }
         // Persist to IndexedDB (survives navigation + reload)
@@ -300,7 +359,7 @@ export async function initGossipNetwork(localProfile) {
 
     const profile = msg.profile
 
-    if (profile.peerId === myProfile?.peerId) return
+    if (peerIdsEqual(profile.peerId, myProfile?.peerId)) return
     if (isProfileExpired(profile)) return
 
     const isValid = await verifyProfile(profile)
@@ -310,20 +369,34 @@ export async function initGossipNetwork(localProfile) {
     }
 
     const cached = peersCache.get(profile.peerId)
-    if (cached && cached.timestamp >= profile.timestamp) return
+    if (cached && cached.timestamp >= profile.timestamp) {
+      if (connectionState.get(profile.peerId) === 'sent') {
+        resendPendingConnectionRequest(profile.peerId).catch(() => {})
+      }
+      return
+    }
 
     console.log('[gossip] received profile from', profile.username)
     peersCache.set(profile.peerId, profile)
     setStatus('connected', `Connected — ${peersCache.size} peer(s) found`)
     notifyProfileListeners()
 
+    // If we're waiting on a connection request to this peer, nudge delivery now that we know they're alive
+    if (connectionState.get(profile.peerId) === 'sent') {
+      resendPendingConnectionRequest(profile.peerId).catch(() => {})
+    }
+
     await network.sendToNetwork({ type: 'PROFILE_GOSSIP', profile })
   })
 
-  // Re-broadcast every 5s so late-joiners see us quickly
+  // Re-broadcast every 5s so late-joiners see us quickly; also re-send pending
+  // connection requests so two local tabs / flaky bootstrap don't stay stuck on "Request sent"
 
   timers.push(setInterval(() => {
-    if (myProfile) broadcastProfile(myProfile)
+    if (myProfile) {
+      broadcastProfile(myProfile)
+      flushPendingOutgoingRequests()
+    }
   }, 5_000))
 
   // Prune expired profiles every 10s
@@ -332,7 +405,6 @@ export async function initGossipNetwork(localProfile) {
     for (const [peerId, profile] of peersCache.entries()) {
       if (isProfileExpired(profile)) {
         peersCache.delete(peerId)
-        trustCache.delete(peerId)
         changed = true
       }
     }
