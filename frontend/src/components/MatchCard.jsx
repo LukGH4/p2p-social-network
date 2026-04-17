@@ -23,11 +23,10 @@ function sharedTags(myTags, peerTags) {
  *   onChat          — () => void  (state === 'connected')
  */
 export default function MatchCard({ match, myTags, connectionState = 'none', onConnect, onAccept, onDecline, onChat }) {
-  const { username, bio, score, tags, trust } = match
+  const { username, bio, score, tags } = match
 
   const pct = Math.round(score * 100)
   const common = sharedTags(myTags, tags)
-  const trustPct = Math.round((trust?.score ?? 0) * 100)
 
   function renderActions() {
     switch (connectionState) {
@@ -70,9 +69,6 @@ export default function MatchCard({ match, myTags, connectionState = 'none', onC
         </div>
         <div className="card-metrics">
           <span className="card-score">{pct}% Match</span>
-          <span className={`trust-pill trust-${trust?.level ?? 'low'}`}>
-            {trustPct}% Trust
-          </span>
         </div>
       </div>
 
