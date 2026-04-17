@@ -1,10 +1,11 @@
-// IndexedDB storage via idb. Database: 'findyourpeer-db'.
+// IndexedDB storage 
  
 import { openDB } from 'idb'
  
 const DB_NAME = 'findyourpeer-db'
 const DB_VERSION = 4
  
+// We are getting the database
 function getDB() {
   return openDB(DB_NAME, DB_VERSION, {
     upgrade(db, oldVersion) {
@@ -22,8 +23,7 @@ function getDB() {
         }
       }
       if (oldVersion < 4) {
-        // Vouches are keyed by a composite id of "voucherPeerId:subjectPeerId"
-        // (the id field built in trust.js via getVouchId).
+
         if (!db.objectStoreNames.contains('vouches')) {
           db.createObjectStore('vouches', { keyPath: 'id' })
         }
@@ -32,8 +32,8 @@ function getDB() {
   })
 }
  
-// Profile store
  
+// We use these functions to basically get and save and delete the profiels
 export async function saveProfile(profile) {
   const db = await getDB()
   await db.put('profiles', profile, 'myProfile')
@@ -49,8 +49,8 @@ export async function deleteProfile() {
   await db.delete('profiles', 'myProfile')
 }
  
-// Keypair store — CryptoKey objects are stored via structured clone
- 
+// In similar way we use these to get save and delete the profiles
+
 export async function saveKeypair(keypair) {
   const db = await getDB()
   await db.put('keypairs', keypair, 'myKeypair')
@@ -66,8 +66,8 @@ export async function deleteKeypair() {
   await db.delete('keypairs', 'myKeypair')
 }
  
-// Connections store — persists mutually-accepted peer connections across reloads
  
+// We use these to save get and delete the connections
 export async function saveConnection(peerId) {
   const db = await getDB()
   await db.put('connections', { peerId, connectedAt: Date.now() }, peerId)
@@ -83,9 +83,6 @@ export async function getConnections() {
   return db.getAll('connections')
 }
  
-// Messages store — persists chat messages across navigation and reloads
-// conversationId = [peerA, peerB].sort().join('|')
-// sender: 'me' | 'peer'
  
 export async function saveMessage(conversationId, msg) {
   const db = await getDB()
@@ -96,13 +93,11 @@ export async function saveMessage(conversationId, msg) {
 export async function getMessages(conversationId) {
   const db = await getDB()
   const all = await db.getAllFromIndex('messages', 'by_conversation', conversationId)
-  // Sort by time ascending (IDB doesn't guarantee order)
   return all.sort((a, b) => a.time - b.time)
 }
  
-// Vouches store — persists signed peer trust vouches across reloads
-// Each vouch is keyed by vouch.id = "voucherPeerId:subjectPeerId"
  
+// These are used to get save the delete the vouches for trust
 export async function saveVouch(vouch) {
   const db = await getDB()
   await db.put('vouches', vouch)
