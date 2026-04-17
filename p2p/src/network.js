@@ -13,6 +13,9 @@ const DISCOVERY_PROTOCOL = '/findyourpeer/discovery/1.0.0'
 const BROADCAST_PROTOCOL = '/findyourpeer/broadcast/1.0.0'
 const DISCOVERY_INTERVAL_MS = 5_000
 const RELAY_ADDR_TIMEOUT_MS = 10_000
+const BOOTSTRAP_DIAL_RETRIES = 5
+const PEER_DIAL_RETRIES = 3
+const DIAL_RETRY_DELAY_MS = 500
 
 const relay = circuitRelayTransport({ discoverRelays: 1 })
 
@@ -31,6 +34,38 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+function getErrorMessage(err) {
+  return err instanceof Error ? err.message : String(err)
+}
+
+function isIgnorableDialError(err) {
+  const message = getErrorMessage(err)
+  return (
+    message.includes('NO_RESERVATION') ||
+    message.includes('Unexpected EOF') ||
+    message.includes('This operation was aborted') ||
+    message.includes('Remote closed connection during opening') ||
+    message.includes('stream closed') ||
+    message.includes('ECONNRESET')
+  )
+}
+
+async function retry(operation, { attempts, delayMs }) {
+  let lastErr = null
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await operation()
+    } catch (err) {
+      lastErr = err
+      if (attempt === attempts) break
+      await delay(delayMs * attempt)
+    }
+  }
+
+  throw lastErr
+}
+
 export class P2PNetwork {
   constructor({ bootstrapAddr } = {}) {
     this.bootstrapAddr = bootstrapAddr
@@ -38,8 +73,11 @@ export class P2PNetwork {
     this.node = null
     this.knownPeers = new Map()
     this.connectedPeers = new Set()
+    this.dialingPeers = new Set()
     this.messageHandlers = []
     this.discoveryTimer = null
+    this.refreshInFlight = null
+    this.refreshQueued = false
     this.id = Math.random().toString(36).slice(2, 8)
   }
 
@@ -69,14 +107,20 @@ export class P2PNetwork {
       RAW_PROTOCOL,
       async (stream, connection) => {
         const channel = lpStream(stream)
-        const chunk = await channel.read()
-        if (chunk == null) return
-        const payload = decodeChunk(chunk)
-        const from = connection.remotePeer.toString()
-        if (payload.type === 'PROFILE_GOSSIP') mark('profile:receive')
-        else if (payload.type === 'DIRECT_MESSAGE') mark('message:receive', { sentAt: payload.sentAt })
-        for (const cb of this.messageHandlers) {
-          cb(payload, from)
+        try {
+          const chunk = await channel.read()
+          if (chunk == null) return
+          const payload = decodeChunk(chunk)
+          const from = connection.remotePeer.toString()
+          if (payload.type === 'PROFILE_GOSSIP') mark('profile:receive')
+          else if (payload.type === 'DIRECT_MESSAGE') mark('message:receive', { sentAt: payload.sentAt })
+          for (const cb of this.messageHandlers) {
+            cb(payload, from)
+          }
+        } catch (_) {
+          // Transient stream failures are expected under local relay churn.
+        } finally {
+          try { await stream.close() } catch (_) {}
         }
       },
       { runOnLimitedConnection: true }
@@ -89,7 +133,7 @@ export class P2PNetwork {
         this.connectedPeers.add(peerId)
         const addrs = this.getListenAddrs()
         if (addrs.some(a => a.includes('/p2p-circuit'))) {
-          this.refreshPeers().catch(() => {})
+          this.scheduleRefresh()
         }
       }
     })
@@ -103,7 +147,18 @@ export class P2PNetwork {
 
     if (!this.bootstrapAddr) return
 
-    const connection = await this.node.dial(multiaddr(this.bootstrapAddr))
+    let connection
+    try {
+      connection = await retry(
+        () => this.node.dial(multiaddr(this.bootstrapAddr)),
+        { attempts: BOOTSTRAP_DIAL_RETRIES, delayMs: DIAL_RETRY_DELAY_MS }
+      )
+    } catch (err) {
+      try { await this.node.stop() } catch (_) {}
+      this.node = null
+      throw err
+    }
+
     this.bootstrapPeerId = connection.remotePeer.toString()
     this.connectedPeers.delete(this.bootstrapPeerId)
     mark('peer:bootstrap-connected', { id: this.id })
@@ -113,14 +168,14 @@ export class P2PNetwork {
 
     for (let i = 0; i < 5; i++) {
       await delay(1500)
-      await this.refreshPeers()
+      await this.scheduleRefresh()
     }
 
     mark('peer:ready', { id: this.id })
 
     // We use this timer to keep updating the peers at a regular freq
     this.discoveryTimer = setInterval(() => {
-      this.refreshPeers().catch(err => {
+      this.scheduleRefresh().catch(err => {
         console.error('peer discovery refresh failed:', err.message)
       })
     }, DISCOVERY_INTERVAL_MS)
@@ -176,6 +231,8 @@ export class P2PNetwork {
       clearInterval(this.discoveryTimer)
       this.discoveryTimer = null
     }
+    this.refreshQueued = false
+    this.dialingPeers.clear()
     if (this.node) await this.node.stop()
   }
 
@@ -190,8 +247,28 @@ export class P2PNetwork {
     return []
   }
 
+  async scheduleRefresh() {
+    if (this.refreshInFlight) {
+      this.refreshQueued = true
+      return this.refreshInFlight
+    }
+
+    this.refreshInFlight = this.refreshPeers()
+      .finally(() => {
+        this.refreshInFlight = null
+      })
+
+    await this.refreshInFlight
+
+    if (this.refreshQueued) {
+      this.refreshQueued = false
+      return this.scheduleRefresh()
+    }
+  }
+
   async refreshPeers() {
     if (!this.bootstrapAddr) return
+    if (!this.node) return
 
     const request = {
       type: 'register',
@@ -222,6 +299,13 @@ export class P2PNetwork {
       if (responseChunk == null) return
 
       const response = decodeChunk(responseChunk)
+      const actuallyConnected = new Set(
+        this.node.getConnections().map(conn => conn.remotePeer.toString())
+      )
+
+      for (const peerId of this.connectedPeers) {
+        if (!actuallyConnected.has(peerId)) this.connectedPeers.delete(peerId)
+      }
 
       for (const peer of response.peers ?? []) {
         if (peer.peerId === this.getPeerId() || peer.peerId === this.bootstrapPeerId) continue
@@ -229,16 +313,32 @@ export class P2PNetwork {
         // This is used to connect and then keep a saved record of the peers
         this.knownPeers.set(peer.peerId, peer)
 
-        if (this.connectedPeers.has(peer.peerId)) continue
+        if (actuallyConnected.has(peer.peerId)) {
+          this.connectedPeers.add(peer.peerId)
+          continue
+        }
 
-        if (peer.addresses.length > 0) {
+        if (this.dialingPeers.has(peer.peerId)) continue
+
+        let lastDialError = null
+        this.dialingPeers.add(peer.peerId)
+        for (const addr of peer.addresses) {
           try {
-            await this.node.dial(multiaddr(peer.addresses[0]))
+            await retry(
+              () => this.node.dial(multiaddr(addr)),
+              { attempts: PEER_DIAL_RETRIES, delayMs: DIAL_RETRY_DELAY_MS }
+            )
+            this.connectedPeers.add(peer.peerId)
+            lastDialError = null
+            break
           } catch (err) {
-            if (!err.message.includes('NO_RESERVATION')) {
-              console.error(`failed to connect to ${peer.peerId}:`, err.message)
-            }
+            lastDialError = err
           }
+        }
+        this.dialingPeers.delete(peer.peerId)
+
+        if (lastDialError && !isIgnorableDialError(lastDialError)) {
+          console.error(`failed to connect to ${peer.peerId}:`, getErrorMessage(lastDialError))
         }
       }
     } catch (err) {

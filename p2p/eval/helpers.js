@@ -23,9 +23,27 @@ export function stats(times) {
 
 // This function is used for displaying the results that we gather into a table
 export function printTable(rows, cols) {
-  console.log(cols.join('\t'))
-  console.log(cols.map(() => '-------').join('\t'))
-  for (const row of rows) console.log(cols.map(c => row[c] ?? '').join('\t'))
+  const values = rows.map(row => cols.map(col => String(row[col] ?? '')))
+  const widths = cols.map((col, index) =>
+    Math.max(
+      col.length,
+      ...values.map(row => row[index].length)
+    )
+  )
+
+  const isNumeric = value =>
+    /^-?\d+(\.\d+)?%?$/.test(value) || value === 'N/A'
+
+  const formatCell = (value, index) =>
+    isNumeric(value)
+      ? value.padStart(widths[index])
+      : value.padEnd(widths[index])
+
+  const formatRow = row => row.map((value, index) => formatCell(value, index)).join(' | ')
+
+  console.log(formatRow(cols))
+  console.log(widths.map(width => '-'.repeat(width)).join('-+-'))
+  for (const row of values) console.log(formatRow(row))
 }
 
 // This makes a mock profile that we can use for the testing purposes
@@ -55,12 +73,21 @@ export function makeProfile(i) {
 // This makes the bootstrap node  that we can use for tests
 export function startBootstrap() {
   return new Promise((res, rej) => {
-    const proc = spawn('node', [resolve(__dirname, '../src/bootstrap.js')], {
+    const proc = spawn(process.execPath, [resolve(__dirname, '../src/bootstrap.js')], {
+      env: { ...process.env, BOOTSTRAP_PORT: '0' },
       stdio: ['ignore', 'pipe', 'inherit'],
     })
 
     let peerId = null
     let wsAddr = null
+    let settled = false
+
+    const finish = (fn, value) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      fn(value)
+    }
 
     proc.stdout.on('data', chunk => {
       const text = chunk.toString()
@@ -68,10 +95,22 @@ export function startBootstrap() {
       const addrMatch = text.match(/\/ip4\/127\.0\.0\.1\/tcp\/\d+\/ws/)
       if (peerMatch) peerId = peerMatch[1]
       if (addrMatch) wsAddr = addrMatch[0]
-      if (peerId && wsAddr) res({ proc, addr: `${wsAddr}/p2p/${peerId}` })
+      if (peerId && wsAddr) finish(res, { proc, addr: `${wsAddr}/p2p/${peerId}` })
     })
 
-    proc.on('error', rej)
-    setTimeout(() => rej(new Error('bootstrap startup timed out')), 8000)
+    proc.on('error', err => {
+      try { proc.kill() } catch (_) {}
+      finish(rej, err)
+    })
+
+    proc.on('exit', (code, signal) => {
+      if (settled) return
+      finish(rej, new Error(`bootstrap exited before ready (code ${code ?? 'null'}, signal ${signal ?? 'null'})`))
+    })
+
+    const timeout = setTimeout(() => {
+      try { proc.kill() } catch (_) {}
+      finish(rej, new Error('bootstrap startup timed out'))
+    }, 8000)
   })
 }

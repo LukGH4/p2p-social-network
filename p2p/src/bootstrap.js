@@ -8,6 +8,7 @@ import { createLibp2p } from 'libp2p'
 import { DISCOVERY_PROTOCOL } from './network.js'
 
 const STALE_PEER_MS = 30_000
+const listenPort = Number(process.env.BOOTSTRAP_PORT ?? 4012)
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -38,7 +39,7 @@ function pruneRegistry() {
 // We are using the create lib p2p function make our bootstrpa node
 const node = await createLibp2p({
   addresses: {
-    listen: ['/ip4/0.0.0.0/tcp/4012/ws']
+    listen: [`/ip4/0.0.0.0/tcp/${listenPort}/ws`]
   },
   transports: [webSockets()],
   connectionEncrypters: [noise()],

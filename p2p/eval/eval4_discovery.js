@@ -5,8 +5,11 @@ import { getMarks, clearMarks } from '../src/timing.js'
 import { startBootstrap, delay, stats, printTable } from './helpers.js'
 
 // These are the different number of peer counts that we will test for the eval
-const PEER_COUNTS = [2, 5, 10, 15]
-const TRIALS = 5
+const PEER_COUNTS = (process.env.EVAL4_PEER_COUNTS ?? '2,4,6,8')
+  .split(',')
+  .map(value => Number(value.trim()))
+  .filter(Number.isFinite)
+const TRIALS = Number(process.env.EVAL4_TRIALS ?? 5)
 
 // This function is used to get the different timings for each of the peers
 function extractPeerTimes(marks) {
@@ -52,8 +55,8 @@ async function runTrial(bootstrapAddr, peerCount) {
 // With the main function we run all of the trials to get the results that we need for the eval
 async function main() {
   console.log('Eval 4 — peer join/discovery time vs number of joining peers')
-  console.log('Single machine | peers started in parallel | 5 trials per count')
-  console.log('Columns: total start() time, time to bootstrap, time to relay addr\n')
+  console.log(`Single machine | peers started in parallel | ${TRIALS} trial${TRIALS === 1 ? '' : 's'} per count`)
+  console.log('Columns: total avg, total max, bootstrap avg, relay avg, had peers\n')
 
   const { proc, addr } = await startBootstrap()
   await delay(1500)
@@ -94,7 +97,9 @@ async function main() {
       'had peers':    `${discoveryRate}%`,
     })
 
-    console.log(`  ${peerCount} peers → total avg ${sTotal.avg}ms  bootstrap avg ${sBoot.avg}ms  relay avg ${sRelay.avg}ms  had peers: ${discoveryRate}%`)
+    console.log(
+      `${peerCount} peers | total avg ${sTotal.avg}ms | total max ${sTotal.max}ms | bootstrap avg ${sBoot.avg}ms | relay avg ${sRelay.avg}ms | had peers ${discoveryRate}%`
+    )
   }
 
   proc.kill()
