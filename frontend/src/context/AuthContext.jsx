@@ -62,32 +62,12 @@ export function AuthProvider({ children }) {
   // This is hte main logout function which will first broadcast that the peer is being deleted and we delete all the date
   // we have a lot of error catching here to check for any log out failures
   async function logout() {
-    try {
-      await broadcastDeletion()
-    } catch (err) {
-      console.error('[auth] broadcastDeletion error:', err.message)
-    }
- 
-    try {
-      await teardownGossipNetwork()
-    } catch (err) {
-      console.error('[auth] teardown error:', err.message)
-    }
-
-    try {
-      await deleteProfile()
-      await deleteKeypair()
-    } catch (err) {
-      console.error('[auth] storage cleanup error:', err.message)
-    }
- 
+    await broadcastDeletion().catch(err => console.error('[auth] broadcastDeletion error:', err.message))
+    await teardownGossipNetwork().catch(err => console.error('[auth] teardown error:', err.message))
+    await deleteProfile().catch(err => console.error('[auth] storage cleanup error:', err.message))
+    await deleteKeypair().catch(err => console.error('[auth] storage cleanup error:', err.message))
     setUser(null)
- 
-    try {
-      await privyLogout()
-    } catch (err) {
-      console.error('[auth] Privy logout error:', err.message)
-    }
+    await privyLogout().catch(err => console.error('[auth] Privy logout error:', err.message))
   }
  
   // We use this to give the auth context which is the user the auth state nd the functions to the components

@@ -30,7 +30,6 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-
       await privyLogin()
     } catch (err) {
       console.error('Login failed:', err)
@@ -90,14 +89,6 @@ export default function Login() {
             {loading ? 'Signing in...' : 'Sign In with Email'}
           </button>
 
-          <div className="login-methods">
-            <p className="methods-label">Other ways to sign in:</p>
-            <p className="methods-note">
-              Privy supports email, SMS, Google, Apple, and wallet sign-in. 
-              Configure additional methods in your Privy dashboard.
-            </p>
-          </div>
-
           {error && (
             <div className="error-message">
               <p>{error}</p>
@@ -106,7 +97,7 @@ export default function Login() {
 
           <div className="login-footer">
             <p className="security-note">
-              🔒 Your security is important. Privy uses industry-standard authentication and encryption.
+              Your security is important. Privy uses industry-standard authentication and encryption.
             </p>
           </div>
         </div>

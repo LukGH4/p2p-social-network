@@ -189,25 +189,6 @@ textarea {
   margin-top: 4px;
 }
 
-.blockchain-field {
-  padding: 16px;
-  border: 1px solid #262626;
-  border-radius: 10px;
-  background: #141414;
-}
-
-.wallet-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-
-.wallet-status {
-  color: #a5a0ff;
-  font-size: 13px;
-}
-
 .tag-group {
   display: flex;
   flex-direction: column;
@@ -429,37 +410,9 @@ textarea {
   flex-shrink: 0;
 }
 
-.trust-pill {
-  font-size: 12px;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-weight: 600;
-}
-
-.trust-high {
-  background: rgba(52, 211, 153, 0.14);
-  color: #6ee7b7;
-}
-
-.trust-medium {
-  background: rgba(250, 204, 21, 0.14);
-  color: #fde68a;
-}
-
-.trust-low {
-  background: rgba(148, 163, 184, 0.14);
-  color: #cbd5e1;
-}
-
 .shared-tags {
   font-size: 13px;
   color: #777;
-}
-
-.trust-details,
-.trust-reasons {
-  font-size: 13px;
-  color: #8b8b8b;
 }
 
 .card-actions {
@@ -691,25 +644,6 @@ textarea {
   font-weight: 600;
 }
 
-.login-methods {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid #262626;
-}
-
-.methods-label {
-  font-size: 13px;
-  color: #aaa;
-  margin-bottom: 8px;
-  font-weight: 600;
-}
-
-.methods-note {
-  font-size: 13px;
-  color: #777;
-  line-height: 1.6;
-}
-
 .error-message {
   margin-top: 16px;
   padding: 12px;
@@ -803,119 +737,6 @@ textarea {
   font-size: 12px;
   color: #666;
   margin-top: 4px;
-}
-
-/* Blockchain styles */
-
-.blockchain-setup {
-  max-width: 640px;
-}
-
-.blockchain-setup-content {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-}
-
-.setup-explanation {
-  background: #1a1a1a;
-  border: 1px solid #262626;
-  border-radius: 12px;
-  padding: 24px;
-}
-
-.setup-explanation h2 {
-  font-size: 20px;
-  margin-bottom: 16px;
-}
-
-.benefits-list {
-  list-style: none;
-}
-
-.benefits-list li {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
-  font-size: 14px;
-  color: #ccc;
-}
-
-.benefit-icon {
-  font-size: 18px;
-  flex-shrink: 0;
-}
-
-.blockchain-form {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.wallet-status {
-  min-height: 80px;
-}
-
-.status-success {
-  background: #1a3a1a;
-  border: 1px solid #3a6a3a;
-  border-radius: 8px;
-  padding: 16px;
-  text-align: center;
-}
-
-.status-title {
-  color: #6add6a;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.status-detail {
-  color: #aaa;
-  font-size: 14px;
-  margin-bottom: 12px;
-}
-
-.error-box {
-  background: #3a2020;
-  border: 1px solid #6b3a3a;
-  border-radius: 8px;
-  padding: 16px;
-}
-
-.error-title {
-  color: #ff8989;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.error-message {
-  color: #ff8989;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.form-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  margin-top: 8px;
-}
-
-.btn-wide {
-  flex: 1;
-}
-
-.setup-footer {
-  text-align: center;
-  padding-top: 20px;
-  border-top: 1px solid #262626;
-}
-
-.footer-note {
-  color: #777;
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 /* User menu classes */

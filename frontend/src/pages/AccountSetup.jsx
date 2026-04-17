@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { usePrivy } from '@privy-io/react-auth'
 import { useAuth } from '../context/AuthContext'
 import { emptyTags } from '../schema/interestSchema'
-import { createProfile, getOrCreateIdentityMaterial } from '../lib/profile'
+import { createProfile } from '../lib/profile'
 import { broadcastProfile } from '../lib/gossipBridge'
 import InterestTagSelector from '../components/InterestTagSelector'
 
@@ -121,7 +121,7 @@ export default function AccountSetup() {
       </div>
 
       {step === 1 ? (
-        <form onSubmit={(e) => { e.preventDefault(); handleNextStep(); }} className="setup-form">
+        <form onSubmit={e => { e.preventDefault(); handleNextStep() }} className="setup-form">
           <div className="field">
             <label>Username</label>
             <input
