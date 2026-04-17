@@ -46,9 +46,6 @@ export function getMatches(myProfile, peers) {
         label: 'Unverified',
         reasons: [],
         vouchCount: 0,
-        walletAddress: null,
-        ensName: null,
-        identityVerified: false,
       }
       const compatibilityScore = cosine(myVec, toVector(p))
       const overallScore = (compatibilityScore * 0.85) + (trust.score * 0.15)

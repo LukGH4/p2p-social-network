@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { sendMessage, onMessage } from '../lib/p2pBridge'
-import { formatWalletAddress } from '../lib/blockchain'
 import {
   getKnownProfiles,
   getConnectionState,
@@ -32,8 +31,7 @@ export default function Chat() {
   const peer = getKnownProfiles().find(p => p.peerId === peerId)
   const peerName = peer?.username || peerId?.slice(0, 8)
   const trust = peer?.trust
-  const trustAnchor = trust?.ensName || formatWalletAddress(trust?.walletAddress)
- 
+
   const connState = getConnectionState(peerId)
   if (connState !== 'connected') {
     return (
@@ -60,13 +58,12 @@ export default function Chat() {
       peerId={peerId}
       peerName={peerName}
       trust={trust}
-      trustAnchor={trustAnchor}
       navigate={navigate}
     />
   )
 }
- 
-function ChatWindow({ peerId, peerName, trust, trustAnchor, navigate }) {
+
+function ChatWindow({ peerId, peerName, trust, navigate }) {
   const bottomRef = useRef(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -159,7 +156,6 @@ function ChatWindow({ peerId, peerName, trust, trustAnchor, navigate }) {
           <span className="chat-peer-name">{peerName}</span>
           <span className="chat-peer-trust">
             {trust?.label}
-            {trustAnchor ? ` • ${trustAnchor}` : ''}
           </span>
         </div>
       </header>

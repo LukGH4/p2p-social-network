@@ -80,7 +80,6 @@ export default function AccountSetup() {
           username,
           bio,
           selectedTags: selected,
-          blockchainIdentity: null, // No blockchain identity at setup, can add later
         },
         peerId
       )

@@ -76,7 +76,7 @@ export default function Login() {
         <div className="login-form">
           <h2>Sign In</h2>
           <p className="login-description">
-            Use Privy to securely sign in or create your account. Your identity can be verified with blockchain.
+            Use Privy to securely sign in or create your account.
           </p>
 
           <button 

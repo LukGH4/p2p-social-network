@@ -70,7 +70,6 @@ export async function createProfile(formData, peerId) {
     bio: formData.bio.trim(),
     tags: tagsToProfile(formData.selectedTags),
     publicKey: publicKeyBase64,
-    blockchainIdentity: formData.blockchainIdentity ?? null,
   }
 
   const unsigned = createTTLProfile(base)

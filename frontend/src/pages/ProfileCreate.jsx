@@ -45,7 +45,6 @@ export default function ProfileCreate() {
           username,
           bio,
           selectedTags: selected,
-          blockchainIdentity: null,
         },
         peerId
       )

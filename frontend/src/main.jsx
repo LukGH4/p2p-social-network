@@ -12,13 +12,6 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <PrivyProvider
       appId={PRIVY_APP_ID}
-      config={{
-        embeddedWallets: {
-          ethereum: {
-            createOnLogin: 'users-without-wallets'
-          }
-        }
-      }}
     >
       <BrowserRouter>
         <AuthProvider>

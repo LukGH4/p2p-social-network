@@ -72,17 +72,10 @@ export async function loadStoredVouches() {
   return getVouches()
 }
 
-export function buildPeerTrust(profile, identityStatus, vouches) {
+export function buildPeerTrust(profile, vouches) {
   const trustedVouches = Array.isArray(vouches) ? vouches : []
   let score = 0
   const reasons = []
-
-  if (identityStatus?.verified) {
-    score += identityStatus.ensName ? 0.7 : 0.55
-    reasons.push(identityStatus.ensName ? 'ENS-backed wallet' : 'Wallet-backed identity')
-  } else if (profile?.blockchainIdentity) {
-    reasons.push('Wallet claim could not be verified')
-  }
 
   if (trustedVouches.length > 0) {
     score += Math.min(0.3, trustedVouches.length * 0.1)
@@ -94,18 +87,8 @@ export function buildPeerTrust(profile, identityStatus, vouches) {
   return {
     score: normalizedScore,
     level: normalizedScore >= 0.75 ? 'high' : normalizedScore >= 0.45 ? 'medium' : 'low',
-    label: getTrustLabel(identityStatus, trustedVouches.length),
+    label: trustedVouches.length > 0 ? 'Peer vouched' : 'Unverified',
     reasons,
     vouchCount: trustedVouches.length,
-    walletAddress: identityStatus?.walletAddress ?? profile?.blockchainIdentity?.walletAddress ?? null,
-    ensName: identityStatus?.ensName ?? profile?.blockchainIdentity?.ensName ?? null,
-    identityVerified: Boolean(identityStatus?.verified),
   }
-}
-
-function getTrustLabel(identityStatus, vouchCount) {
-  if (identityStatus?.ensName) return 'ENS verified'
-  if (identityStatus?.verified) return 'Wallet verified'
-  if (vouchCount > 0) return 'Peer vouched'
-  return 'Unverified'
 }

@@ -95,7 +95,7 @@ export default function MatchFeed() {
       <div className="feed-body">
         <p className="welcome">Hey {user?.username}, here are your matches.</p>
         <p className="feed-subtitle">
-          Match ranking blends movie similarity with blockchain-backed trust and peer vouches.
+          Match ranking blends movie similarity with peer vouches.
         </p>
 
         {matches.length === 0 ? (
