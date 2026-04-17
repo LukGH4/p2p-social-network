@@ -27,7 +27,7 @@ input, textarea {
   font: inherit;
 }
 
-/* ---- Buttons ---- */
+/* Buttons */
 
 .btn-primary {
   background: #6c63ff;
@@ -81,7 +81,7 @@ button:disabled {
   font-size: 14px;
 }
 
-/* ---- Inputs ---- */
+/* Inputs */
 
 input[type="text"],
 textarea {
@@ -103,7 +103,7 @@ textarea {
   resize: vertical;
 }
 
-/* ---- Onboarding ---- */
+/* Onboarding */
 
 .onboarding {
   max-width: 500px;
@@ -132,7 +132,7 @@ textarea {
   max-width: 400px;
 }
 
-/* ---- Profile Create ---- */
+/* Forms and Create Profile */
 
 .form-page {
   max-width: 640px;
@@ -180,7 +180,7 @@ textarea {
   margin-top: 8px;
 }
 
-/* ---- Tag Selector ---- */
+/* Selection for the tags */
 
 .tag-selector {
   display: flex;
@@ -248,7 +248,7 @@ textarea {
   font-weight: 500;
 }
 
-/* ---- Network status bar ---- */
+/* The status for the network */
 
 .net-status {
   text-align: center;
@@ -272,7 +272,7 @@ textarea {
   color: #4ade80;
 }
 
-/* ---- Feed ---- */
+/* Feed page */
 
 .feed-page {
   min-height: 100vh;
@@ -334,7 +334,7 @@ textarea {
   gap: 12px;
 }
 
-/* ---- Match Card ---- */
+/* Match card styles */
 
 .match-card {
   background: #1a1a1a;
@@ -367,7 +367,7 @@ textarea {
   flex: 1;
 }
 
-/* ---- Pending requests banner ---- */
+/* Banner for pending requests */
 
 .pending-banner {
   background: rgba(108, 99, 255, 0.15);
@@ -468,7 +468,7 @@ textarea {
   flex-wrap: wrap;
 }
 
-/* ---- Chat ---- */
+/* Chat page */
 
 .chat-page {
   display: flex;
@@ -552,7 +552,7 @@ textarea {
   flex: 1;
 }
 
-/* ---- Toast notifications ---- */
+/* Toast notifications */
 
 .toast-container {
   position: fixed;
@@ -632,7 +632,7 @@ textarea {
   justify-content: flex-end;
 }
 
-/* ---- Login Page ---- */
+/* Login page styles */
 
 .login-page {
   display: flex;
@@ -732,7 +732,7 @@ textarea {
   text-align: center;
 }
 
-/* ---- Account Setup Page ---- */
+/* Account set up styles */
 
 .account-setup {
   max-width: 640px;
@@ -805,7 +805,7 @@ textarea {
   margin-top: 4px;
 }
 
-/* ---- Blockchain Setup Page ---- */
+/* Blockchain styles */
 
 .blockchain-setup {
   max-width: 640px;
@@ -918,7 +918,7 @@ textarea {
   line-height: 1.6;
 }
 
-/* ---- User Menu ---- */
+/* User menu classes */
 
 .user-menu-container {
   position: relative;
@@ -1023,7 +1023,7 @@ textarea {
   color: #ffaaaa;
 }
 
-/* ---- Loading State ---- */
+/* Loading */
 
 .loading {
   display: flex;

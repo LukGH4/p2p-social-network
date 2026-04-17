@@ -1,5 +1,6 @@
 import { INTEREST_SCHEMA } from '../schema/interestSchema'
 
+// This function looks at the list of all the tags that are shared between two users
 function sharedTags(myTags, peerTags) {
   const shared = []
   for (const [cat, { tags }] of Object.entries(INTEREST_SCHEMA)) {
@@ -12,22 +13,16 @@ function sharedTags(myTags, peerTags) {
   return shared
 }
 
-/**
- * Props:
- *   match           — peer profile + score
- *   myTags          — local user's tags (for shared tag computation)
- *   connectionState — 'none' | 'sent' | 'received' | 'connected'
- *   onConnect       — () => void  (state === 'none')
- *   onAccept        — () => void  (state === 'received')
- *   onDecline       — () => void  (state === 'received')
- *   onChat          — () => void  (state === 'connected')
- */
+
 export default function MatchCard({ match, myTags, connectionState = 'none', onConnect, onAccept, onDecline, onChat }) {
   const { username, bio, score, tags } = match
 
+  // Here we do the simple calculation of taking the score and making it into a percent 
   const pct = Math.round(score * 100)
   const common = sharedTags(myTags, tags)
 
+  // Now we use the connection state and do switch case to show which button to display to the user based on 
+  // what the connection status for the peers is
   function renderActions() {
     switch (connectionState) {
       case 'connected':
@@ -59,6 +54,8 @@ export default function MatchCard({ match, myTags, connectionState = 'none', onC
     }
   }
 
+
+  // We are displaying the ui elements here which will give the information like the matching score to the user
   return (
     <div className={`match-card${connectionState === 'connected' ? ' match-card--connected' : ''}`}>
       <div className="card-top">

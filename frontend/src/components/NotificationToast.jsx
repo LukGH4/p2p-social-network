@@ -6,11 +6,11 @@ const TOAST_DURATION_MS = 6_000
 export default function NotificationToast() {
   const [toasts, setToasts] = useState([])
 
+  // We are going to be listening for the connection requests to the user and gives the notification to the user based on this
   useEffect(() => {
     const unsub = onConnectionRequest(({ fromPeerId, fromUsername }) => {
       const id = Date.now()
       setToasts(prev => [...prev, { id, fromPeerId, fromUsername }])
-      // Auto-dismiss after timeout
       setTimeout(() => {
         setToasts(prev => prev.filter(t => t.id !== id))
       }, TOAST_DURATION_MS)
@@ -18,6 +18,7 @@ export default function NotificationToast() {
     return unsub
   }, [])
 
+  // These functions are used to dismiss or accept or decline the connection requests given to the user
   function dismiss(id) {
     setToasts(prev => prev.filter(t => t.id !== id))
   }
@@ -34,6 +35,8 @@ export default function NotificationToast() {
 
   if (toasts.length === 0) return null
 
+
+  // This shows to the user the components which properly shows the notifications and gives the user the option to accept or decline
   return (
     <div className="toast-container">
       {toasts.map(toast => (

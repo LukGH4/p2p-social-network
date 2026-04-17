@@ -1,6 +1,8 @@
 import { INTEREST_SCHEMA } from '../schema/interestSchema'
 
 export default function InterestTagSelector({ selected, onToggle }) {
+  // Here we render all of the interests with the tags and everything for the user to select
+  // We toggle the tags based on what is selected and also highlight for the user what is selected
   return (
     <div className="tag-selector">
       {Object.entries(INTEREST_SCHEMA).map(([category, { label, tags }]) => (

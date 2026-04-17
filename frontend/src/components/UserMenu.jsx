@@ -5,18 +5,21 @@ import { useAuth } from '../context/AuthContext'
 export default function UserMenu() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  // We can use this to simply show if the menu is visible or not to the user
   const [showMenu, setShowMenu] = useState(false)
 
   if (!user) {
     return null
   }
 
+  // The handle log out function basically waits for the log out and once the log out happens it navigates the user to the login page
   async function handleLogout() {
     setShowMenu(false)
     await logout()
     navigate('/login', { replace: true })
   }
 
+  // We return the ui components that the user can see to show the information of the user and the menu which can be opened
   return (
     <div className="user-menu-container">
       <button 
