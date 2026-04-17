@@ -18,9 +18,11 @@ export default function AccountSetup() {
   const [selected, setSelected] = useState(emptyTags())
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [step, setStep] = useState(1) // 1: Basic Info, 2: Interests
+  const [step, setStep] = useState(1)
 
-  // Redirect if not authenticated or already has profile
+
+  // For the account setup if we find that the profile is already there or if the user is not properly logged in
+  // then we need to redirect the user
   useEffect(() => {
     if (!privyReady) return
     if (!privyUser) {
@@ -33,6 +35,7 @@ export default function AccountSetup() {
     }
   }, [privyReady, privyUser, appUser, navigate])
 
+  // Toggle tag will basically just modify the tags based on which of the interest tags were selected
   function toggleTag(category, tag) {
     setSelected(prev => {
       const current = prev[category]
@@ -43,10 +46,12 @@ export default function AccountSetup() {
     })
   }
 
+  // This function is very simple and just counts how many of the itnerests in total were selected by the user
   function totalSelected() {
     return Object.values(selected).reduce((sum, arr) => sum + arr.length, 0)
   }
 
+  // We have some constraints for the username length which we use this function to properly enforce
   function handleNextStep() {
     if (!username.trim()) {
       setError('Please enter a username.')
@@ -64,6 +69,7 @@ export default function AccountSetup() {
     setStep(2)
   }
 
+  // Here we will start by making the profile and then navigting the user to the feed page
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
@@ -99,6 +105,8 @@ export default function AccountSetup() {
     return null
   }
 
+  // We return these frontend elements to get the user's username and their bio first and then
+  // we also get their movie preferences to make their entire profile
   return (
     <div className="form-page account-setup">
       <div className="setup-header">

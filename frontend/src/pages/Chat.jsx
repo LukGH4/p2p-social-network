@@ -10,6 +10,7 @@ import {
 } from '../lib/gossipBridge'
 import { getMessages, saveMessage } from '../lib/db'
  
+// For all of the conversations, we need to have a unique ID for the chat between the two peers
 function makeConvId(a, b) {
   return [a, b].sort().join('|')
 }
@@ -19,6 +20,8 @@ export default function Chat() {
   const navigate = useNavigate()
   const [, setSync] = useState(0)
  
+  // If we see that the connection has been changed or that data for the peer profile is different then we will
+  // load the chat one more time
   useEffect(() => {
     const unsubConn = onConnectionChange(() => setSync(n => n + 1))
     const unsubProfiles = onPeerProfile(() => setSync(n => n + 1))
@@ -33,6 +36,8 @@ export default function Chat() {
   const trust = peer?.trust
 
   const connState = getConnectionState(peerId)
+
+  // We need to make sure that the connection state is connected before we can enable the chat functionality
   if (connState !== 'connected') {
     return (
       <div className="chat-page">
@@ -69,6 +74,7 @@ function ChatWindow({ peerId, peerName, trust, navigate }) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
  
+  // We skip the message load for whichever peer IDs are not available to us
   useEffect(() => {
     const myPeerId = getMyPeerId()
     if (!myPeerId) {
@@ -124,6 +130,9 @@ function ChatWindow({ peerId, peerName, trust, navigate }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
  
+
+  // We make this function to take care of sending the message and then working on saving the chat and 
+  // showing the chat
   async function handleSend(e) {
     e.preventDefault()
     if (!input.trim()) return

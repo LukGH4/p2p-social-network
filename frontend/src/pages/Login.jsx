@@ -11,14 +11,15 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // If user is already logged in with app profile, go to feed
+  // We want to make the user go to the feed page in the case that the user already has the profile
   useEffect(() => {
     if (appUser) {
       navigate('/feed', { replace: true })
     }
   }, [appUser, navigate])
 
-  // If Privy user is authenticated but no app profile, go to account setup
+
+  // If the user does not have the profile then they need to be navigated to the account setup page
   useEffect(() => {
     if (privyReady && privyUser && !appUser) {
       navigate('/account-setup', { replace: true })
@@ -29,7 +30,7 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      // Privy's built-in email login - this will prompt the user
+
       await privyLogin()
     } catch (err) {
       console.error('Login failed:', err)
@@ -39,6 +40,7 @@ export default function Login() {
     }
   }
 
+  // For as long as privy is not ready we just show the login page to the user
   if (!privyReady) {
     return (
       <div className="login-page">
@@ -50,7 +52,8 @@ export default function Login() {
     )
   }
 
-  // If already authenticated with Privy, show account setup prompt
+
+  // For as long as the user doesnt have a profile we keep showing the prompt to the user for the setting up of the profile
   if (privyUser && !appUser) {
     return (
       <div className="login-page">

@@ -16,6 +16,7 @@ import {
 import MatchCard from '../components/MatchCard'
 import UserMenu from '../components/UserMenu'
 
+// This is a simple function which get the matches to get the ranked peers that are matched for the peer
 function buildRankedMatches(user, peers) {
   return getMatches(user, peers)
 }
@@ -25,12 +26,13 @@ export default function MatchFeed() {
   const navigate = useNavigate()
   const [matches, setMatches] = useState([])
   const [netStatus, setNetStatus] = useState(getNetworkStatus())
-  // tick forces re-render when connection state changes (state lives in gossipBridge module)
+
   const [, setConnTick] = useState(0)
 
+  // We need to refresh which means we will get the new requests to the very top for the matches
   function refresh(peers) {
     const list = buildRankedMatches(user, peers)
-    // Pending inbound requests first so Accept / Decline are obvious during demo
+
     list.sort((a, b) => {
       const ra = getConnectionState(a.peerId) === 'received'
       const rb = getConnectionState(b.peerId) === 'received'
@@ -40,6 +42,7 @@ export default function MatchFeed() {
     setMatches(list)
   }
 
+  // Here we will refresh the page and then we want to update with the peers and the network status and the connection status
   useEffect(() => {
     if (!user) return
 
@@ -65,6 +68,7 @@ export default function MatchFeed() {
     }
   }, [user])
 
+  // The status bar is a simple function which returns different text based on the current status
   function statusBar() {
     const { status, statusMessage } = netStatus
     if (status === 'connecting') return <p className="net-status net-status--connecting">Connecting to network...</p>
@@ -75,6 +79,7 @@ export default function MatchFeed() {
 
   const pendingRequests = matches.filter(m => getConnectionState(m.peerId) === 'received')
 
+  // We return the different frontend components that will be rendered for the feed page
   return (
     <div className="feed-page">
       <header className="feed-header">
