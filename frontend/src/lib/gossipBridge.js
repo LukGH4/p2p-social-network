@@ -1,66 +1,66 @@
 import { P2PNetwork } from './network.js'
 import { verifyProfile, isProfileExpired, createTTLProfile, signProfile } from './profile.js'
 import { getKeypair, saveConnection, deleteConnection, getConnections, saveMessage } from './db.js'
-
+ 
 /** Default: bootstrap on same machine. Override with VITE_BOOTSTRAP_ADDR (full multiaddr). */
 const DEFAULT_BOOTSTRAP_ADDR = '/ip4/127.0.0.1/tcp/4012/ws'
-
+ 
 function getBootstrapAddr() {
   const fromEnv = import.meta.env.VITE_BOOTSTRAP_ADDR
   if (typeof fromEnv === 'string' && fromEnv.trim()) return fromEnv.trim()
   return DEFAULT_BOOTSTRAP_ADDR
 }
-
+ 
 // ── Peer profile cache ──────────────────────────────────────────────────────
 const peersCache = new Map()
 const profileListeners = []
-
+ 
 // ── Direct messages — real-time delivery to active Chat ─────────────────────
 const directMessageListeners = []
-
+ 
 // ── Connection state machine ────────────────────────────────────────────────
 // peerId → 'sent' | 'received' | 'connected'
 const connectionState = new Map()
 const connectionListeners = []
 const requestListeners = []   // fires when a brand-new request arrives
-
+ 
 // ── Network status ──────────────────────────────────────────────────────────
 const statusListeners = []
-const timers = []
+let timers = []
 let network = null
 let myProfile = null
 let status = 'disconnected' // 'disconnected' | 'connecting' | 'connected' | 'error'
 let statusMessage = ''
-
+ 
 // ── Internal helpers ────────────────────────────────────────────────────────
-
+ 
 function setStatus(s, msg = '') {
   status = s
   statusMessage = msg
   console.log('[gossip] status:', s, msg)
   statusListeners.forEach(cb => cb(s, msg))
 }
-
+ 
 function notifyProfileListeners() {
   const all = getKnownProfiles()
   profileListeners.forEach(cb => cb(all))
 }
-
+ 
 function notifyConnectionListeners() {
   connectionListeners.forEach(cb => cb())
 }
-
+ 
 /** Stable conversation ID shared by both peers for the same chat. */
 function makeConvId(peerA, peerB) {
   return [peerA, peerB].sort().join('|')
 }
-
+ 
 /** Application peer ids (UUID strings) must match reliably across messages. */
 function peerIdsEqual(a, b) {
   if (a == null || b == null) return false
   return String(a) === String(b)
 }
-
+ 
 /**
  * Best-effort duplicate sends so the other browser still receives control messages
  * if the first bootstrap broadcast is flaky (requester stuck on "Request sent").
@@ -74,7 +74,7 @@ function scheduleRedundantControlSend(payload) {
     }, ms)
   }
 }
-
+ 
 /**
  * Re-send a pending CONNECTION_REQUEST (state === 'sent').
  * `sendConnectionRequest` refuses to send again while 'sent', which leaves two
@@ -95,14 +95,14 @@ async function resendPendingConnectionRequest(toPeerId) {
   await network.sendToNetwork(payload)
   scheduleRedundantControlSend(payload)
 }
-
+ 
 function flushPendingOutgoingRequests() {
   for (const [peerId, state] of connectionState.entries()) {
     if (state !== 'sent') continue
     resendPendingConnectionRequest(peerId).catch(() => {})
   }
 }
-
+ 
 async function queryPeerConnectionState(peerId) {
   if (!network || !myProfile) return
   const payload = {
@@ -112,7 +112,7 @@ async function queryPeerConnectionState(peerId) {
   }
   await network.sendToNetwork(payload)
 }
-
+ 
 function syncConnectionStatesWithPeers() {
   for (const [peerId, state] of connectionState.entries()) {
     if (state === 'sent' || state === 'received' || state === 'connected') {
@@ -120,13 +120,13 @@ function syncConnectionStatesWithPeers() {
     }
   }
 }
-
+ 
 // ── Exports: network status ─────────────────────────────────────────────────
-
+ 
 export function getNetworkStatus() {
   return { status, statusMessage, peerCount: peersCache.size }
 }
-
+ 
 export function onNetworkStatusChange(callback) {
   statusListeners.push(callback)
   return () => {
@@ -134,14 +134,14 @@ export function onNetworkStatusChange(callback) {
     if (i !== -1) statusListeners.splice(i, 1)
   }
 }
-
+ 
 // ── Exports: connection state ───────────────────────────────────────────────
-
+ 
 /** Returns 'none' | 'sent' | 'received' | 'connected' */
 export function getConnectionState(peerId) {
   return connectionState.get(peerId) ?? 'none'
 }
-
+ 
 export function onConnectionChange(callback) {
   connectionListeners.push(callback)
   return () => {
@@ -149,7 +149,7 @@ export function onConnectionChange(callback) {
     if (i !== -1) connectionListeners.splice(i, 1)
   }
 }
-
+ 
 /**
  * Fires when a new connection request arrives for this peer.
  * callback({ fromPeerId, fromUsername })
@@ -161,7 +161,7 @@ export function onConnectionRequest(callback) {
     if (i !== -1) requestListeners.splice(i, 1)
   }
 }
-
+ 
 export async function sendConnectionRequest(toPeerId) {
   if (!network || !myProfile) return
   const current = connectionState.get(toPeerId)
@@ -177,7 +177,7 @@ export async function sendConnectionRequest(toPeerId) {
   await network.sendToNetwork(payload)
   scheduleRedundantControlSend(payload)
 }
-
+ 
 export async function acceptConnection(fromPeerId) {
   if (!network || !myProfile) return
   connectionState.set(fromPeerId, 'connected')
@@ -191,7 +191,7 @@ export async function acceptConnection(fromPeerId) {
   await network.sendToNetwork(payload)
   scheduleRedundantControlSend(payload)
 }
-
+ 
 export async function declineConnection(fromPeerId) {
   if (!network || !myProfile) return
   connectionState.delete(fromPeerId)
@@ -205,9 +205,9 @@ export async function declineConnection(fromPeerId) {
   await network.sendToNetwork(payload)
   scheduleRedundantControlSend(payload)
 }
-
+ 
 // ── Exports: messaging ──────────────────────────────────────────────────────
-
+ 
 export function onDirectMessage(callback) {
   directMessageListeners.push(callback)
   return () => {
@@ -215,7 +215,7 @@ export function onDirectMessage(callback) {
     if (i !== -1) directMessageListeners.splice(i, 1)
   }
 }
-
+ 
 export async function sendDirectMessage(toPeerId, text) {
   if (!network) { console.warn('[gossip] network not ready'); return }
   console.log('[gossip] sending DM to:', toPeerId, 'from:', myProfile?.peerId)
@@ -228,13 +228,13 @@ export async function sendDirectMessage(toPeerId, text) {
     time,
   })
 }
-
+ 
 // ── Exports: profiles ───────────────────────────────────────────────────────
-
+ 
 export function getKnownProfiles() {
   return Array.from(peersCache.values())
 }
-
+ 
 export function onPeerProfile(callback) {
   profileListeners.push(callback)
   return () => {
@@ -242,11 +242,11 @@ export function onPeerProfile(callback) {
     if (i !== -1) profileListeners.splice(i, 1)
   }
 }
-
+ 
 export function getMyPeerId() {
   return myProfile?.peerId ?? null
 }
-
+ 
 async function refreshProfileSignature(profile) {
   try {
     const kp = await getKeypair()
@@ -259,32 +259,61 @@ async function refreshProfileSignature(profile) {
     return profile
   }
 }
-
+ 
 export async function broadcastProfile(profile) {
   const refreshed = await refreshProfileSignature(profile)
   myProfile = refreshed
   if (!network) return
   await network.sendToNetwork({ type: 'PROFILE_GOSSIP', profile: myProfile })
 }
-
+ 
 export async function broadcastDeletion() {
   if (!network || !myProfile) return
   await network.sendToNetwork({ type: 'PROFILE_DELETE', peerId: myProfile.peerId })
   myProfile = null
 }
+ 
+// ── Teardown ────────────────────────────────────────────────────────────────
+ 
 
+export async function teardownGossipNetwork() {
+  // Stop all periodic timers
+  for (const timer of timers) {
+    clearInterval(timer)
+  }
+  timers = []
+ 
+  // Stop the libp2p node (closes WebSocket connections)
+  if (network) {
+    try {
+      await network.stop()
+    } catch (err) {
+      console.warn('[gossip] error stopping network during teardown:', err.message)
+    }
+    network = null
+  }
+ 
+  // Clear all runtime state so initGossipNetwork starts fresh on re-login
+  myProfile = null
+  peersCache.clear()
+  connectionState.clear()
+ 
+  setStatus('disconnected', '')
+  console.log('[gossip] network torn down')
+}
+ 
 // ── Init ────────────────────────────────────────────────────────────────────
-
+ 
 export async function initGossipNetwork(localProfile) {
   if (network) return
-
+ 
   myProfile = localProfile
   setStatus('connecting', 'Connecting to bootstrap...')
-
+ 
   network = new P2PNetwork({
     bootstrapAddr: getBootstrapAddr(),
   })
-
+ 
   try {
     await network.start()
   } catch (err) {
@@ -292,9 +321,9 @@ export async function initGossipNetwork(localProfile) {
     network = null
     throw err
   }
-
+ 
   setStatus('connected', 'Connected to bootstrap')
-
+ 
   // Restore persisted (accepted) connections from IndexedDB
   try {
     const saved = await getConnections()
@@ -305,18 +334,18 @@ export async function initGossipNetwork(localProfile) {
   } catch (err) {
     console.warn('[gossip] failed to restore connections:', err.message)
   }
-
+ 
   // Sync connection states with peers on startup
   setTimeout(() => {
     syncConnectionStatesWithPeers()
   }, 2000)
-
+ 
   // When a new peer connects, immediately re-broadcast our profile so they see us right away
   network.onPeerConnect((peerId) => {
     console.log('[gossip] peer connected:', peerId, '— broadcasting profile')
     if (myProfile) broadcastProfile(myProfile)
   })
-
+ 
   network.onMessage(async (msg, from) => {
     // ── Connection request ─────────────────────────────────────────────────
     if (msg.type === 'CONNECTION_REQUEST') {
@@ -344,7 +373,7 @@ export async function initGossipNetwork(localProfile) {
       }
       return
     }
-
+ 
     // ── Connection accept ──────────────────────────────────────────────────
     if (msg.type === 'CONNECTION_ACCEPT') {
       if (peerIdsEqual(msg.to, myProfile?.peerId)) {
@@ -354,7 +383,7 @@ export async function initGossipNetwork(localProfile) {
       }
       return
     }
-
+ 
     // ── Connection decline ─────────────────────────────────────────────────
     if (msg.type === 'CONNECTION_DECLINE') {
       if (peerIdsEqual(msg.to, myProfile?.peerId)) {
@@ -364,7 +393,7 @@ export async function initGossipNetwork(localProfile) {
       }
       return
     }
-
+ 
     // ── Connection state query ─────────────────────────────────────────────
     if (msg.type === 'CONNECTION_STATE_QUERY') {
       if (peerIdsEqual(msg.to, myProfile?.peerId)) {
@@ -379,13 +408,13 @@ export async function initGossipNetwork(localProfile) {
       }
       return
     }
-
+ 
     // ── Connection state response ──────────────────────────────────────────
     if (msg.type === 'CONNECTION_STATE_RESPONSE') {
       if (peerIdsEqual(msg.to, myProfile?.peerId)) {
         const theirState = msg.state
         const myState = connectionState.get(msg.from)
-        
+ 
         if (theirState === 'connected' && myState === 'sent') {
           connectionState.set(msg.from, 'connected')
           await saveConnection(msg.from)
@@ -401,7 +430,7 @@ export async function initGossipNetwork(localProfile) {
       }
       return
     }
-
+ 
     // ── Direct chat message ────────────────────────────────────────────────
     if (msg.type === 'DIRECT_MESSAGE') {
       console.log('[gossip] DM received → to:', msg.to, '| myPeerId:', myProfile?.peerId, '| match:', peerIdsEqual(msg.to, myProfile?.peerId))
@@ -417,7 +446,7 @@ export async function initGossipNetwork(localProfile) {
       }
       return
     }
-
+ 
     // ── Profile deletion ───────────────────────────────────────────────────
     if (msg.type === 'PROFILE_DELETE' && msg.peerId) {
       if (peersCache.has(msg.peerId)) {
@@ -427,21 +456,21 @@ export async function initGossipNetwork(localProfile) {
       }
       return
     }
-
+ 
     // ── Profile gossip ─────────────────────────────────────────────────────
     if (msg.type !== 'PROFILE_GOSSIP' || !msg.profile) return
-
+ 
     const profile = msg.profile
-
+ 
     if (peerIdsEqual(profile.peerId, myProfile?.peerId)) return
     if (isProfileExpired(profile)) return
-
+ 
     const isValid = await verifyProfile(profile)
     if (!isValid) {
       console.warn('[gossip] invalid signature from', from)
       return
     }
-
+ 
     const cached = peersCache.get(profile.peerId)
     if (cached && cached.timestamp >= profile.timestamp) {
       if (connectionState.get(profile.peerId) === 'sent') {
@@ -449,23 +478,22 @@ export async function initGossipNetwork(localProfile) {
       }
       return
     }
-
+ 
     console.log('[gossip] received profile from', profile.username)
     peersCache.set(profile.peerId, profile)
     setStatus('connected', `Connected — ${peersCache.size} peer(s) found`)
     notifyProfileListeners()
-
+ 
     // If we're waiting on a connection request to this peer, nudge delivery now that we know they're alive
     if (connectionState.get(profile.peerId) === 'sent') {
       resendPendingConnectionRequest(profile.peerId).catch(() => {})
     }
-
+ 
     await network.sendToNetwork({ type: 'PROFILE_GOSSIP', profile })
   })
-
+ 
   // Re-broadcast every 5s so late-joiners see us quickly; also re-send pending
   // connection requests so two local tabs / flaky bootstrap don't stay stuck on "Request sent"
-
   timers.push(setInterval(() => {
     if (myProfile) {
       broadcastProfile(myProfile)
@@ -473,7 +501,7 @@ export async function initGossipNetwork(localProfile) {
       syncConnectionStatesWithPeers()
     }
   }, 5_000))
-
+ 
   // Prune expired profiles every 10s
   timers.push(setInterval(() => {
     let changed = false
@@ -488,6 +516,6 @@ export async function initGossipNetwork(localProfile) {
       notifyProfileListeners()
     }
   }, 10_000))
-
+ 
   if (myProfile) broadcastProfile(myProfile)
 }

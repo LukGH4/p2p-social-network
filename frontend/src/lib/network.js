@@ -69,7 +69,7 @@ export class P2PNetwork {
         identify: identify()
       },
       connectionGater: {
-        denyDialMultiaddr: async () => false, 
+        denyDialMultiaddr: async () => false,
       }
     })
 
@@ -87,6 +87,8 @@ export class P2PNetwork {
           }
         } catch (err) {
           // stream errors are non-fatal
+        } finally {
+          try { await stream.close() } catch (_) {}
         }
       },
       {

@@ -1,32 +1,32 @@
 /* eslint-disable react-refresh/only-export-components */
-
+ 
 import { createContext, useContext, useState, useEffect } from 'react'
 import { usePrivy } from '@privy-io/react-auth'
-import { getProfile, saveProfile, deleteProfile } from '../lib/db'
-import { initGossipNetwork, broadcastProfile, broadcastDeletion } from '../lib/gossipBridge'
-
+import { getProfile, saveProfile, deleteProfile, deleteKeypair } from '../lib/db'
+import { initGossipNetwork, broadcastProfile, broadcastDeletion, teardownGossipNetwork } from '../lib/gossipBridge'
+ 
 const AuthContext = createContext(null)
-
+ 
 export function AuthProvider({ children }) {
   const { user: privyUser, ready: privyReady, logout: privyLogout, authenticated } = usePrivy()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [privyAuthenticated, setPrivyAuthenticated] = useState(false)
-
+ 
   // Track Privy authentication status
   useEffect(() => {
     if (privyReady) {
       setPrivyAuthenticated(authenticated)
     }
   }, [privyReady, authenticated])
-
+ 
   // Load profile on app startup and when Privy is ready
   useEffect(() => {
     ;(async () => {
       if (!privyReady) {
         return // Wait for Privy to be ready
       }
-      
+ 
       const profile = await getProfile()
       if (profile && authenticated) {
         setUser(profile)
@@ -42,7 +42,7 @@ export function AuthProvider({ children }) {
       setLoading(false)
     })()
   }, [privyReady, authenticated])
-
+ 
   async function login(profile) {
     await saveProfile(profile)
     setUser(profile)
@@ -53,15 +53,29 @@ export function AuthProvider({ children }) {
       console.error('[auth] network init failed on login:', err.message)
     }
   }
-
+ 
   async function logout() {
     try {
       await broadcastDeletion()
-      await deleteProfile()
     } catch (err) {
-      console.error('[auth] logout error:', err.message)
+      console.error('[auth] broadcastDeletion error:', err.message)
     }
+ 
+    try {
+      await teardownGossipNetwork()
+    } catch (err) {
+      console.error('[auth] teardown error:', err.message)
+    }
+
+    try {
+      await deleteProfile()
+      await deleteKeypair()
+    } catch (err) {
+      console.error('[auth] storage cleanup error:', err.message)
+    }
+ 
     setUser(null)
+ 
     // Call Privy logout to clear the session
     try {
       await privyLogout()
@@ -69,15 +83,15 @@ export function AuthProvider({ children }) {
       console.error('[auth] Privy logout error:', err.message)
     }
   }
-
+ 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
-        loading, 
-        login, 
-        logout, 
-        privyUser, 
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        logout,
+        privyUser,
         privyReady,
         privyAuthenticated
       }}
@@ -86,7 +100,7 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   )
 }
-
+ 
 export function useAuth() {
   return useContext(AuthContext)
 }

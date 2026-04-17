@@ -10,16 +10,16 @@ import {
   onPeerProfile,
 } from '../lib/gossipBridge'
 import { getMessages, saveMessage } from '../lib/db'
-
+ 
 function makeConvId(a, b) {
   return [a, b].sort().join('|')
 }
-
+ 
 export default function Chat() {
   const { peerId } = useParams()
   const navigate = useNavigate()
   const [, setSync] = useState(0)
-
+ 
   useEffect(() => {
     const unsubConn = onConnectionChange(() => setSync(n => n + 1))
     const unsubProfiles = onPeerProfile(() => setSync(n => n + 1))
@@ -28,12 +28,12 @@ export default function Chat() {
       unsubProfiles()
     }
   }, [])
-
+ 
   const peer = getKnownProfiles().find(p => p.peerId === peerId)
   const peerName = peer?.username || peerId?.slice(0, 8)
   const trust = peer?.trust
   const trustAnchor = trust?.ensName || formatWalletAddress(trust?.walletAddress)
-
+ 
   const connState = getConnectionState(peerId)
   if (connState !== 'connected') {
     return (
@@ -54,7 +54,7 @@ export default function Chat() {
       </div>
     )
   }
-
+ 
   return (
     <ChatWindow
       peerId={peerId}
@@ -65,70 +65,92 @@ export default function Chat() {
     />
   )
 }
-
+ 
 function ChatWindow({ peerId, peerName, trust, trustAnchor, navigate }) {
   const bottomRef = useRef(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
-
+ 
   useEffect(() => {
     const myPeerId = getMyPeerId()
+    if (!myPeerId) {
+      console.warn('[chat] myPeerId not available yet — skipping message load')
+      setLoading(false)
+      return
+    }
+ 
     const convId = makeConvId(myPeerId, peerId)
     let cancelled = false
 
-    // Collect messages that arrive during the async DB load so we don't drop them
-    const pending = []
+    const pendingMessages = []
+    const pendingTimestamps = new Set()
     let dbLoaded = false
-
+ 
     const unsub = onMessage(msg => {
       if (msg.from !== peerId) return
       const newMsg = { from: 'peer', text: msg.text, time: msg.time ?? Date.now() }
       if (dbLoaded) {
+        // DB is already loaded — just append directly to state.
         setMessages(prev => [...prev, newMsg])
       } else {
-        pending.push(newMsg)
+        // DB hasn't loaded yet. Collect this message so we can merge it after,
+        // but record its timestamp so we can deduplicate against the DB snapshot.
+        pendingMessages.push(newMsg)
+        pendingTimestamps.add(newMsg.time)
       }
     })
-
+ 
     getMessages(convId).then(stored => {
       if (cancelled) return
       dbLoaded = true
+ 
       const history = stored.map(m => ({ from: m.sender, text: m.text, time: m.time }))
-      // Append any messages that arrived while we were loading — they are already
-      // persisted by gossipBridge, but aren't in this DB snapshot yet, so add them
-      setMessages([...history, ...pending])
+ 
+      // Only include pending messages whose timestamp is NOT already present in
+      // the DB snapshot. gossipBridge persists received messages before firing
+      // listeners, so most (or all) pending messages will already be in history.
+      const dbTimestamps = new Set(history.map(m => m.time))
+      const newPending = pendingMessages.filter(m => !dbTimestamps.has(m.time))
+ 
+      setMessages([...history, ...newPending])
       setLoading(false)
     })
-
+ 
     return () => {
       cancelled = true
       unsub()
     }
   }, [peerId])
-
+ 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
-
+ 
   async function handleSend(e) {
     e.preventDefault()
     if (!input.trim()) return
+ 
+    const myPeerId = getMyPeerId()
+    if (!myPeerId) {
+      console.warn('[chat] cannot send — myPeerId not available yet')
+      return
+    }
+ 
     const text = input.trim()
     const time = Date.now()
-    const myPeerId = getMyPeerId()
     const convId = makeConvId(myPeerId, peerId)
-
+ 
     sendMessage(peerId, text)
     setMessages(prev => [...prev, { from: 'me', text, time }])
     setInput('')
-
+ 
     // Persist sent message so it survives navigation
     saveMessage(convId, { sender: 'me', from: myPeerId, text, time }).catch(err =>
       console.warn('[chat] failed to save sent message:', err)
     )
   }
-
+ 
   return (
     <div className="chat-page">
       <header className="chat-header">
@@ -141,7 +163,7 @@ function ChatWindow({ peerId, peerName, trust, trustAnchor, navigate }) {
           </span>
         </div>
       </header>
-
+ 
       <div className="chat-messages">
         {loading ? (
           <p className="chat-empty">Loading…</p>
@@ -156,7 +178,7 @@ function ChatWindow({ peerId, peerName, trust, trustAnchor, navigate }) {
         )}
         <div ref={bottomRef} />
       </div>
-
+ 
       <form className="chat-input" onSubmit={handleSend}>
         <input
           type="text"
