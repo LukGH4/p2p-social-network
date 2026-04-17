@@ -14,15 +14,10 @@ import {
   declineConnection,
 } from '../lib/gossipBridge'
 import MatchCard from '../components/MatchCard'
+import UserMenu from '../components/UserMenu'
 
 function buildRankedMatches(user, peers) {
-  return getMatches(
-    user,
-    peers.map(peer => ({
-      ...peer,
-      trust: getPeerTrust(peer.peerId),
-    }))
-  )
+  return getMatches(user, peers)
 }
 
 export default function MatchFeed() {
@@ -33,16 +28,8 @@ export default function MatchFeed() {
   // tick forces re-render when connection state changes (state lives in gossipBridge module)
   const [, setConnTick] = useState(0)
 
-  async function handleVouch(peerId) {
-    setTrustError('')
-
-    try {
-      await vouchForPeer(peerId)
-      setMatches(buildRankedMatches(user, getKnownProfiles()))
-    } catch (err) {
-      console.error('Failed to vouch for peer:', err)
-      setTrustError(err instanceof Error ? err.message : 'Failed to vouch for peer.')
-    }
+  function refresh(peers) {
+    setMatches(buildRankedMatches(user, peers))
   }
 
   useEffect(() => {
@@ -81,10 +68,7 @@ export default function MatchFeed() {
     <div className="feed-page">
       <header className="feed-header">
         <span className="brand">FindYourPeer</span>
-        <div className="header-actions">
-          <button className="btn-ghost" onClick={() => navigate('/profile/create')}>Edit Profile</button>
-          <button className="btn-ghost" onClick={() => { logout(); navigate('/') }}>Sign Out</button>
-        </div>
+        <UserMenu />
       </header>
 
       {statusBar()}
@@ -102,7 +86,6 @@ export default function MatchFeed() {
         <p className="feed-subtitle">
           Match ranking blends movie similarity with blockchain-backed trust and peer vouches.
         </p>
-        {trustError && <p className="error">{trustError}</p>}
 
         {matches.length === 0 ? (
           <div className="empty-state">

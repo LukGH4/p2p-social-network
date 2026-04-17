@@ -80,8 +80,9 @@ export async function getConnections() {
 // conversationId = [peerA, peerB].sort().join('|')
 // sender: 'me' | 'peer'
 
-export async function saveMessage(conversationId, { sender, from, text, time }) {
+export async function saveMessage(conversationId, msg) {
   const db = await getDB()
+  const { sender, from, text, time } = msg
   await db.add('messages', { conversationId, sender, from, text, time })
 }
 

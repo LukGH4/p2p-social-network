@@ -147,11 +147,13 @@ export function onDirectMessage(callback) {
 export async function sendDirectMessage(toPeerId, text) {
   if (!network) { console.warn('[gossip] network not ready'); return }
   console.log('[gossip] sending DM to:', toPeerId, 'from:', myProfile?.peerId)
+  const time = Date.now()
   await network.sendToNetwork({
     type: 'DIRECT_MESSAGE',
     to: toPeerId,
     from: myProfile?.peerId,
     text,
+    time,
   })
 }
 
@@ -271,7 +273,8 @@ export async function initGossipNetwork(localProfile) {
     if (msg.type === 'DIRECT_MESSAGE') {
       console.log('[gossip] DM received → to:', msg.to, '| myPeerId:', myProfile?.peerId, '| match:', msg.to === myProfile?.peerId)
       if (msg.to === myProfile?.peerId) {
-        const msgObj = { sender: 'peer', from: msg.from, text: msg.text, time: Date.now() }
+        const time = msg.time ?? Date.now()
+        const msgObj = { sender: 'peer', from: msg.from, text: msg.text, time }
         // Persist to IndexedDB (survives navigation + reload)
         const convId = makeConvId(msg.from, myProfile.peerId)
         saveMessage(convId, msgObj).catch(err => console.warn('[gossip] failed to save DM:', err))

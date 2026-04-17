@@ -24,7 +24,7 @@ function sharedTags(myTags, peerTags) {
  *   onChat          — () => void  (state === 'connected')
  */
 export default function MatchCard({ match, myTags, connectionState = 'none', onConnect, onAccept, onDecline, onChat }) {
-  const { username, bio, score, tags } = match
+  const { username, bio, score, tags, trust } = match
 
   const pct = Math.round(score * 100)
   const common = sharedTags(myTags, tags)

@@ -17,7 +17,7 @@
     "@libp2p/utils": "^7.0.15",
     "@libp2p/websockets": "^10.1.8",
     "@multiformats/multiaddr": "^13.0.1",
-    "ethers": "^6.16.0",
+    "@privy-io/react-auth": "^3.22.1",
     "idb": "^8.0.3",
     "libp2p": "^3.2.0",
     "react": "^19.2.4",
