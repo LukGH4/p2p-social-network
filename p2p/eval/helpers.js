@@ -4,10 +4,12 @@ import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
+// This function will stop the execution for the set amount of time here
 export function delay(ms) {
   return new Promise(r => setTimeout(r, ms))
 }
 
+// This function calculates important stats for the times passed in
 export function stats(times) {
   if (times.length === 0) return { avg: 'N/A', min: 'N/A', max: 'N/A' }
   const avg = times.reduce((a, b) => a + b, 0) / times.length
@@ -18,13 +20,15 @@ export function stats(times) {
   }
 }
 
+
+// This function is used for displaying the results that we gather into a table
 export function printTable(rows, cols) {
   console.log(cols.join('\t'))
   console.log(cols.map(() => '-------').join('\t'))
   for (const row of rows) console.log(cols.map(c => row[c] ?? '').join('\t'))
 }
 
-// Generates a synthetic but realistic peer profile
+// This makes a mock profile that we can use for the testing purposes
 export function makeProfile(i) {
   const pick = (arr, n) =>
     Object.fromEntries([...arr].sort(() => Math.random() - 0.5).slice(0, n).map(k => [k, 1]))
@@ -47,8 +51,8 @@ export function makeProfile(i) {
   }
 }
 
-// Spawns the bootstrap node as a child process.
-// Resolves with { proc, addr } once the bootstrap prints its 127.0.0.1 address.
+
+// This makes the bootstrap node  that we can use for tests
 export function startBootstrap() {
   return new Promise((res, rej) => {
     const proc = spawn('node', [resolve(__dirname, '../src/bootstrap.js')], {

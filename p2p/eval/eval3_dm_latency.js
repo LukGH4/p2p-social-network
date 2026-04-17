@@ -1,18 +1,16 @@
-// Eval 3: Direct message latency vs number of concurrent messages
-// Latency = message:receive.t − message:send.t, both from timing marks.
-// For per-message accuracy, sentAt is also embedded in the payload so
-// the receiver can compute latency independently of the shared mark log.
-//
-// Setup: single machine, two in-process libp2p peers.
+// Eval 3: Direct message latency compared to the number of concurrent messages 
 
 import { P2PNetwork } from '../src/network.js'
 import { getMarks, clearMarks } from '../src/timing.js'
 import { startBootstrap, delay, stats, printTable } from './helpers.js'
 
+// We set these different number of loads so that we can run the tests
 const LOADS = [1, 5, 10, 20, 50]
 const TRIALS = 5
 const RECEIVE_TIMEOUT_MS = 10_000
 
+
+// We have this function to send the messages and then find the amount of time it took to deliver
 async function runTrial(sender, receiver, messageCount) {
   const receiverId = receiver.getPeerId()
   const latencies = []
@@ -38,13 +36,14 @@ async function runTrial(sender, receiver, messageCount) {
   }
 
   const deadline = Date.now() + RECEIVE_TIMEOUT_MS
+
+  // We check for either that all the messages got received or until we end with a timeout
   while (received < messageCount && Date.now() < deadline) {
     await delay(50)
   }
 
   unsub()
 
-  // Cross-check: compare send mark count vs receive mark count
   const marks = getMarks()
   const sent = marks.filter(m => m.event === 'message:send').length
   const receivedMarks = marks.filter(m => m.event === 'message:receive').length
@@ -55,6 +54,7 @@ async function runTrial(sender, receiver, messageCount) {
   return { latencies, delivered: received, total: messageCount }
 }
 
+// The main function is used to run all of the tests and then get the data for the latency
 async function main() {
   console.log('Eval 3 — direct message latency vs concurrent messages')
   console.log('Single machine | two in-process peers | 5 trials per load level\n')
@@ -82,6 +82,7 @@ async function main() {
       await delay(300)
     }
 
+    // We do some calculations to get all the important stats that we need for the latencies
     const s = stats(allLatencies)
     const rate = ((totalDelivered / totalExpected) * 100).toFixed(1)
     results.push({ msgs: count, 'avg (ms)': s.avg, 'max (ms)': s.max, 'success': `${rate}%` })

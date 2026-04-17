@@ -1,17 +1,19 @@
-// Eval 2: Profile propagation latency vs number of peers
-// Measures time from profile:send mark to profile:receive mark on each receiver.
-//
-// Setup: single machine, multiple in-process libp2p nodes through a local bootstrap.
-// Note: measures network-layer propagation only (no signature verification).
+// Eval 2: Profile propagation latency compared to the number of peers
 
 import { P2PNetwork } from '../src/network.js'
 import { getMarks, clearMarks } from '../src/timing.js'
 import { startBootstrap, delay, makeProfile, stats, printTable } from './helpers.js'
 
+
+// The different number of peers to check the latency as we increase the number of different peers
 const PEER_COUNTS = [2, 4, 6, 8]
+
+// For higher reliability of our results, we run the tests multiple times
 const TRIALS = 5
 const RECEIVE_TIMEOUT_MS = 10_000
 
+
+// We have this function to basically send out the profile and then see how much time it takes to receive the profile
 async function runTrial(peers) {
   const profile = makeProfile(Date.now())
   const sender = peers[0]
@@ -32,6 +34,8 @@ async function runTrial(peers) {
   const t0 = sendMark?.t ?? Date.now()
 
   const deadline = Date.now() + RECEIVE_TIMEOUT_MS
+
+  // We put this delay to basically wait for the receiver to get the profiles before or doing a timeout
   while (received.size < receivers.length && Date.now() < deadline) {
     await delay(50)
   }
@@ -73,6 +77,7 @@ async function main() {
 
     await Promise.all(peers.map(p => p.stop()))
 
+    // We do a calculation to get statistics for the latencies that we find
     const s = stats(allLatencies)
     const rate = ((totalDelivered / totalExpected) * 100).toFixed(1)
     results.push({ peers: peerCount, 'avg (ms)': s.avg, 'max (ms)': s.max, 'delivered': `${totalDelivered}/${totalExpected}` })

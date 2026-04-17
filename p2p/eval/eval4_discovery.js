@@ -1,19 +1,14 @@
-// Eval 4: Peer join/discovery time vs number of joining peers
-// Reads peer:startup, peer:bootstrap-connected, peer:relay-ready, and peer:ready
-// marks from timing.js to break down where time goes during peer.start().
-//
-// Each peer instance has a unique this.id so marks from parallel starts
-// can be matched per-peer.
-//
-// Setup: single machine, peers started in parallel per trial.
+// Eval 4: Peer joining and discovery time compared to the number of joining peers
 
 import { P2PNetwork } from '../src/network.js'
 import { getMarks, clearMarks } from '../src/timing.js'
 import { startBootstrap, delay, stats, printTable } from './helpers.js'
 
+// These are the different number of peer counts that we will test for the eval
 const PEER_COUNTS = [2, 5, 10, 15]
 const TRIALS = 5
 
+// This function is used to get the different timings for each of the peers
 function extractPeerTimes(marks) {
   const byId = new Map()
 
@@ -37,6 +32,7 @@ function extractPeerTimes(marks) {
   return times
 }
 
+// We run the trial here and we start all of the peers and get the timing datas
 async function runTrial(bootstrapAddr, peerCount) {
   const peers = Array.from({ length: peerCount }, () => new P2PNetwork({ bootstrapAddr }))
 
@@ -52,6 +48,8 @@ async function runTrial(bootstrapAddr, peerCount) {
   return { times, peersWithDiscovery, total: peerCount }
 }
 
+
+// With the main function we run all of the trials to get the results that we need for the eval
 async function main() {
   console.log('Eval 4 — peer join/discovery time vs number of joining peers')
   console.log('Single machine | peers started in parallel | 5 trials per count')
@@ -81,6 +79,7 @@ async function main() {
       await delay(1000)
     }
 
+    // We are gathering the stats here for the average timings for each metric and the discovery rate that we found
     const sTotal = stats(allTotal)
     const sBoot  = stats(allToBootstrap)
     const sRelay = stats(allToRelay)
