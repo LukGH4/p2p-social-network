@@ -1,12 +1,12 @@
 // Eval 3: Direct message latency vs number of concurrent messages
-// Measures end-to-end latency from sendToNetwork() to onMessage() at the receiver.
-// Latency = receive timestamp − sentAt field in the message payload.
+// Latency = message:receive.t − message:send.t, both from timing marks.
+// For per-message accuracy, sentAt is also embedded in the payload so
+// the receiver can compute latency independently of the shared mark log.
 //
 // Setup: single machine, two in-process libp2p peers.
-// Note: sendToNetwork broadcasts to all connected peers.
-//       receiver filters by msg.to so only intended messages are counted.
 
 import { P2PNetwork } from '../src/network.js'
+import { getMarks, clearMarks } from '../src/timing.js'
 import { startBootstrap, delay, stats, printTable } from './helpers.js'
 
 const LOADS = [1, 5, 10, 20, 50]
@@ -25,13 +25,15 @@ async function runTrial(sender, receiver, messageCount) {
     }
   })
 
+  clearMarks()
   for (let i = 0; i < messageCount; i++) {
+    const sentAt = Date.now()
     await sender.sendToNetwork({
       type: 'DIRECT_MESSAGE',
       to: receiverId,
       from: sender.getPeerId(),
       text: `msg-${i}`,
-      sentAt: Date.now(),
+      sentAt,
     })
   }
 
@@ -41,6 +43,15 @@ async function runTrial(sender, receiver, messageCount) {
   }
 
   unsub()
+
+  // Cross-check: compare send mark count vs receive mark count
+  const marks = getMarks()
+  const sent = marks.filter(m => m.event === 'message:send').length
+  const receivedMarks = marks.filter(m => m.event === 'message:receive').length
+  if (sent !== receivedMarks) {
+    console.log(`    [timing] sent ${sent} message:send marks, got ${receivedMarks} message:receive marks`)
+  }
+
   return { latencies, delivered: received, total: messageCount }
 }
 
@@ -51,7 +62,6 @@ async function main() {
   const { proc, addr } = await startBootstrap()
   await delay(1500)
 
-  // Start the two peers once and reuse across all load levels
   const sender = new P2PNetwork({ bootstrapAddr: addr })
   const receiver = new P2PNetwork({ bootstrapAddr: addr })
   await Promise.all([sender.start(), receiver.start()])

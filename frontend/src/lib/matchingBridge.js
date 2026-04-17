@@ -1,3 +1,5 @@
+import { mark } from './timing.js'
+
 // We are setting these weights based on whuch of the categories are more important for our matching
 const WEIGHTS = { genre: 2.5, era: 1.5, rating: 1.0, runtime: 0.5, language: 1.5 }
 
@@ -37,8 +39,9 @@ function cosine(a, b) {
 
 // We get the matches by making our profile into the vector and then finding the similarity to all of the other peers
 export function getMatches(myProfile, peers) {
+  mark('matching:start', { peerCount: peers.length })
   const myVec = toVector(myProfile)
-  return peers
+  const result = peers
     .filter(p => p.peerId !== myProfile.peerId)
     .map(p => {
       const trust = p.trust ?? {
@@ -59,4 +62,6 @@ export function getMatches(myProfile, peers) {
       }
     })
     .sort((a, b) => b.overallScore - a.overallScore)
+  mark('matching:end', { peerCount: peers.length })
+  return result
 }

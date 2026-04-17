@@ -1,6 +1,7 @@
 import { P2PNetwork } from './network.js'
 import { verifyProfile, isProfileExpired, createTTLProfile, signProfile } from './profile.js'
 import { getKeypair, saveConnection, deleteConnection, getConnections, saveMessage } from './db.js'
+import { mark } from './timing.js'
  
 
 const DEFAULT_BOOTSTRAP_ADDR = '/ip4/127.0.0.1/tcp/4012/ws'
@@ -195,12 +196,14 @@ export async function sendDirectMessage(toPeerId, text) {
   if (!network) { console.warn('[gossip] network not ready'); return }
   console.log('[gossip] sending DM to:', toPeerId, 'from:', myProfile?.peerId)
   const time = Date.now()
+  mark('message:send', { to: toPeerId })
   await network.sendToNetwork({
     type: 'DIRECT_MESSAGE',
     to: toPeerId,
     from: myProfile?.peerId,
     text,
     time,
+    sentAt: time,
   })
 }
 
@@ -236,6 +239,7 @@ export async function broadcastProfile(profile) {
   const refreshed = await refreshProfileSignature(profile)
   myProfile = refreshed
   if (!network) return
+  mark('profile:send', { peerId: myProfile.peerId })
   await network.sendToNetwork({ type: 'PROFILE_GOSSIP', profile: myProfile })
 }
  
@@ -400,6 +404,7 @@ export async function initGossipNetwork(localProfile) {
         const convId = makeConvId(msg.from, myProfile.peerId)
         saveMessage(convId, msgObj).catch(err => console.warn('[gossip] failed to save DM:', err))
         console.log('[gossip] delivering DM from', msg.from, '— listeners:', directMessageListeners.length)
+        mark('message:receive', { from: msg.from, latency: msg.sentAt ? Date.now() - msg.sentAt : undefined })
         directMessageListeners.forEach(cb => cb(msgObj))
       }
       return
@@ -436,6 +441,7 @@ export async function initGossipNetwork(localProfile) {
     }
  
     console.log('[gossip] received profile from', profile.username)
+    mark('profile:cache', { peerId: profile.peerId })
     peersCache.set(profile.peerId, profile)
     setStatus('connected', `Connected — ${peersCache.size} peer(s) found`)
     notifyProfileListeners()

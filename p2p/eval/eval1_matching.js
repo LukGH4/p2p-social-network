@@ -1,8 +1,10 @@
 // Eval 1: Match computation latency vs number of peer profiles
 // Uses the real getMatches() from matchingBridge.js.
 // Peers are synthetic (random tags). No network required.
+// Timing comes from the matching:start / matching:end marks inside getMatches().
 
 import { getMatches } from '../../frontend/src/lib/matchingBridge.js'
+import { getMarks, clearMarks } from '../../frontend/src/lib/timing.js'
 import { makeProfile, stats, printTable } from './helpers.js'
 
 const SIZES = [10, 50, 100, 250, 500, 1000]
@@ -20,9 +22,12 @@ for (const size of SIZES) {
   const times = []
 
   for (let r = 0; r < RUNS; r++) {
-    const t0 = performance.now()
+    clearMarks()
     getMatches(myProfile, peers)
-    times.push(performance.now() - t0)
+    const marks = getMarks()
+    const t0 = marks.find(m => m.event === 'matching:start')?.t
+    const t1 = marks.find(m => m.event === 'matching:end')?.t
+    if (t0 != null && t1 != null) times.push(t1 - t0)
   }
 
   const s = stats(times)

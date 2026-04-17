@@ -6,6 +6,7 @@ import { lpStream } from '@libp2p/utils'
 import { webSockets } from '@libp2p/websockets'
 import { multiaddr } from '@multiformats/multiaddr'
 import { createLibp2p } from 'libp2p'
+import { mark } from './timing.js'
 
 const RAW_PROTOCOL = '/findyourpeer/raw/1.0.0'
 const DISCOVERY_PROTOCOL = '/findyourpeer/discovery/1.0.0'
@@ -39,10 +40,12 @@ export class P2PNetwork {
     this.connectedPeers = new Set()
     this.messageHandlers = []
     this.discoveryTimer = null
+    this.id = Math.random().toString(36).slice(2, 8)
   }
 
   async start() {
     // We are calling the function to make the lib p2p node
+    mark('peer:startup', { id: this.id })
     this.node = await createLibp2p({
       addresses: {
         listen: ['/p2p-circuit']
@@ -70,6 +73,8 @@ export class P2PNetwork {
         if (chunk == null) return
         const payload = decodeChunk(chunk)
         const from = connection.remotePeer.toString()
+        if (payload.type === 'PROFILE_GOSSIP') mark('profile:receive')
+        else if (payload.type === 'DIRECT_MESSAGE') mark('message:receive', { sentAt: payload.sentAt })
         for (const cb of this.messageHandlers) {
           cb(payload, from)
         }
@@ -101,13 +106,17 @@ export class P2PNetwork {
     const connection = await this.node.dial(multiaddr(this.bootstrapAddr))
     this.bootstrapPeerId = connection.remotePeer.toString()
     this.connectedPeers.delete(this.bootstrapPeerId)
+    mark('peer:bootstrap-connected', { id: this.id })
 
     await this.waitForRelayAddress()
+    mark('peer:relay-ready', { id: this.id })
 
     for (let i = 0; i < 5; i++) {
       await delay(1500)
       await this.refreshPeers()
     }
+
+    mark('peer:ready', { id: this.id })
 
     // We use this timer to keep updating the peers at a regular freq
     this.discoveryTimer = setInterval(() => {
@@ -137,6 +146,8 @@ export class P2PNetwork {
   }
 
   async sendToNetwork(payload) {
+    if (payload.type === 'PROFILE_GOSSIP') mark('profile:send')
+    else if (payload.type === 'DIRECT_MESSAGE') mark('message:send', { sentAt: payload.sentAt })
     const connections = this.node.getConnections()
     const sent = new Set()
 
