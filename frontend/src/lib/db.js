@@ -23,7 +23,6 @@ function getDB() {
         }
       }
       if (oldVersion < 4) {
-
         if (!db.objectStoreNames.contains('vouches')) {
           db.createObjectStore('vouches', { keyPath: 'id' })
         }

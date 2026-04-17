@@ -14,19 +14,19 @@ function getBootstrapAddr() {
 
 // We're going to be using this cache to store and keep trak of all of the peers and profiles that we know about
 const peersCache = new Map()
-const profileListeners = []
- 
+let profileListeners = []
 
-const directMessageListeners = []
- 
+
+let directMessageListeners = []
+
 
 // We use this map to keep track of the state of the connection with each of the peers
 const connectionState = new Map()
-const connectionListeners = []
-const requestListeners = []
- 
+let connectionListeners = []
+let requestListeners = []
 
-const statusListeners = []
+
+let statusListeners = []
 let timers = []
 let network = null
 let myProfile = null
@@ -118,10 +118,7 @@ export function getNetworkStatus() {
  
 export function onNetworkStatusChange(callback) {
   statusListeners.push(callback)
-  return () => {
-    const i = statusListeners.indexOf(callback)
-    if (i !== -1) statusListeners.splice(i, 1)
-  }
+  return () => { statusListeners = statusListeners.filter(cb => cb !== callback) }
 }
  
 
@@ -131,19 +128,13 @@ export function getConnectionState(peerId) {
  
 export function onConnectionChange(callback) {
   connectionListeners.push(callback)
-  return () => {
-    const i = connectionListeners.indexOf(callback)
-    if (i !== -1) connectionListeners.splice(i, 1)
-  }
+  return () => { connectionListeners = connectionListeners.filter(cb => cb !== callback) }
 }
 
 
 export function onConnectionRequest(callback) {
   requestListeners.push(callback)
-  return () => {
-    const i = requestListeners.indexOf(callback)
-    if (i !== -1) requestListeners.splice(i, 1)
-  }
+  return () => { requestListeners = requestListeners.filter(cb => cb !== callback) }
 }
  
 // We use this to send the connection request and we need to update the local state and send out the request through the network
@@ -196,10 +187,7 @@ export async function declineConnection(fromPeerId) {
  
 export function onDirectMessage(callback) {
   directMessageListeners.push(callback)
-  return () => {
-    const i = directMessageListeners.indexOf(callback)
-    if (i !== -1) directMessageListeners.splice(i, 1)
-  }
+  return () => { directMessageListeners = directMessageListeners.filter(cb => cb !== callback) }
 }
  
 // This function is to use the network to send out a message to the destintion peer
@@ -223,10 +211,7 @@ export function getKnownProfiles() {
  
 export function onPeerProfile(callback) {
   profileListeners.push(callback)
-  return () => {
-    const i = profileListeners.indexOf(callback)
-    if (i !== -1) profileListeners.splice(i, 1)
-  }
+  return () => { profileListeners = profileListeners.filter(cb => cb !== callback) }
 }
  
 export function getMyPeerId() {
@@ -271,11 +256,7 @@ export async function teardownGossipNetwork() {
  
 
   if (network) {
-    try {
-      await network.stop()
-    } catch (err) {
-      console.warn('[gossip] error stopping network during teardown:', err.message)
-    }
+    await network.stop()
     network = null
   }
  
@@ -346,9 +327,7 @@ export async function initGossipNetwork(localProfile) {
           const autoAccept = { type: 'CONNECTION_ACCEPT', to: msg.from, from: myProfile.peerId }
           await network.sendToNetwork(autoAccept)
           scheduleRedundantControlSend(autoAccept)
-        } else if (existing === 'connected') {
-        } else if (existing === 'received') {
-        } else {
+        } else if (existing !== 'connected' && existing !== 'received') {
           connectionState.set(msg.from, 'received')
           requestListeners.forEach(cb => cb({
             fromPeerId: msg.from,
