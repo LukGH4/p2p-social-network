@@ -4,7 +4,6 @@ import { tagsToProfile } from '../schema/interestSchema'
 
 export const DEFAULT_TTL_MS = 3_600_000
 
-
 function serializePayload(unsigned) {
   const sorted = Object.fromEntries(
     Object.entries(unsigned).sort(([a], [b]) => a.localeCompare(b))
@@ -63,7 +62,7 @@ export async function getStoredProfile() {
 
 // We make the profile by first creating the profile and then signing the profile and then saving the profile
 export async function createProfile(formData, peerId) {
-  const { publicKey: _pk, privateKey, publicKeyBase64 } = await loadOrCreateKeypair()
+  const { privateKey, publicKeyBase64 } = await loadOrCreateKeypair()
 
   const base = {
     peerId,

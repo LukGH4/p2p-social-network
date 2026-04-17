@@ -1,22 +1,19 @@
 import { noise } from '@chainsafe/libp2p-noise'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2'
-
-const relay = circuitRelayTransport({
-  discoverRelays: 1
-})
 import { identify } from '@libp2p/identify'
 import { lpStream } from '@libp2p/utils'
 import { webSockets } from '@libp2p/websockets'
 import { multiaddr } from '@multiformats/multiaddr'
 import { createLibp2p } from 'libp2p'
 
-
 const RAW_PROTOCOL = '/findyourpeer/raw/1.0.0'
 const DISCOVERY_PROTOCOL = '/findyourpeer/discovery/1.0.0'
 const BROADCAST_PROTOCOL = '/findyourpeer/broadcast/1.0.0'
 const DISCOVERY_INTERVAL_MS = 5_000
 const RELAY_ADDR_TIMEOUT_MS = 10_000
+
+const relay = circuitRelayTransport({ discoverRelays: 1 })
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -31,11 +28,6 @@ function decodeChunk(chunk) {
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-function getPeerIdFromEvent(event) {
-  const peer = event.detail?.remotePeer ?? event.detail
-  return typeof peer?.toString === 'function' ? peer.toString() : null
 }
 
 // We are making this class for the p2p network so we can handle each node on the network using the same variables
@@ -58,15 +50,11 @@ export class P2PNetwork {
         listen: ['/p2p-circuit']
       },
       transports: [
-        webSockets({filter: (multiaddrs) => multiaddrs}),
+        webSockets({ filter: (multiaddrs) => multiaddrs }),
         relay
       ],
-      connectionEncrypters: [
-        noise()
-      ],
-      streamMuxers: [
-        yamux()
-      ],
+      connectionEncrypters: [noise()],
+      streamMuxers: [yamux()],
       services: {
         identify: identify()
       },
@@ -85,28 +73,22 @@ export class P2PNetwork {
           const chunk = await channel.read()
           if (chunk == null) return
           const payload = decodeChunk(chunk)
-          for (const callback of this.messageHandlers) {
-            callback(payload, from)
-          }
+          for (const cb of this.messageHandlers) cb(payload, from)
         } catch (err) {
           // stream errors are non-fatal
         } finally {
           try { await stream.close() } catch (_) {}
         }
       },
-      {
-        runOnLimitedConnection: true
-      }
+      { runOnLimitedConnection: true }
     )
 
     this.node.addEventListener('peer:connect', evt => {
-      const peerId = getPeerIdFromEvent(evt)
+      const peerId = (evt.detail?.remotePeer ?? evt.detail)?.toString()
       if (peerId && peerId !== this.bootstrapPeerId) {
-
         // We are keeping track of all of the peers which we are adding and the ones that we are removing
         this.connectedPeers.add(peerId)
         for (const cb of this.peerConnectHandlers) cb(peerId)
-
         const addrs = this.getListenAddrs()
         if (addrs.some(a => a.includes('/p2p-circuit'))) {
           this.registerWithBootstrap().catch(() => {})
@@ -115,31 +97,20 @@ export class P2PNetwork {
     })
 
     this.node.addEventListener('peer:disconnect', evt => {
-      const peerId = getPeerIdFromEvent(evt)
-      if (peerId) {
-        this.connectedPeers.delete(peerId)
-      }
+      const peerId = (evt.detail?.remotePeer ?? evt.detail)?.toString()
+      if (peerId) this.connectedPeers.delete(peerId)
     })
 
     await this.node.start()
 
-    if (!this.bootstrapAddr) {
-      return
-    }
+    if (!this.bootstrapAddr) return
 
     let connection
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        connection = await this.node.dial(multiaddr(this.bootstrapAddr))
-        break
-      } catch (err) {
-        if (attempt < 2) {
-          await delay(500 * (attempt + 1))
-        } else {
-          console.error('[p2p] bootstrap connection failed:', err.message)
-          throw new Error('Bootstrap unreachable: ' + err.message)
-        }
-      }
+    try {
+      connection = await this.node.dial(multiaddr(this.bootstrapAddr))
+    } catch {
+      await delay(1000)
+      connection = await this.node.dial(multiaddr(this.bootstrapAddr))
     }
 
     this.bootstrapPeerId = connection.remotePeer.toString()
@@ -160,11 +131,11 @@ export class P2PNetwork {
   }
 
   getPeerId() {
-    return this.node?.peerId?.toString() ?? null
+    return this.node.peerId.toString()
   }
 
   getListenAddrs() {
-    return this.node?.getMultiaddrs().map(addr => addr.toString()) ?? []
+    return this.node.getMultiaddrs().map(a => a.toString())
   }
 
   getConnectedPeers() {
@@ -174,31 +145,25 @@ export class P2PNetwork {
   onPeerConnect(callback) {
     this.peerConnectHandlers.push(callback)
     return () => {
-      const i = this.peerConnectHandlers.indexOf(callback)
-      if (i !== -1) this.peerConnectHandlers.splice(i, 1)
+      this.peerConnectHandlers = this.peerConnectHandlers.filter(h => h !== callback)
     }
   }
 
   onMessage(callback) {
     this.messageHandlers.push(callback)
-
     return () => {
-      const index = this.messageHandlers.indexOf(callback)
-      if (index !== -1) {
-        this.messageHandlers.splice(index, 1)
-      }
+      this.messageHandlers = this.messageHandlers.filter(h => h !== callback)
     }
   }
 
   // We are going to send the entire message to each of the peers which are connected this way we wont have any duplications
   async sendToNetwork(payload) {
-    const connections = this.node.getConnections?.() ?? []
+    const connections = this.node.getConnections()
     const sent = new Set()
 
     for (const conn of connections) {
       const peerId = conn.remotePeer.toString()
-      if (peerId === this.bootstrapPeerId) continue
-      if (sent.has(peerId)) continue
+      if (peerId === this.bootstrapPeerId || sent.has(peerId)) continue
       sent.add(peerId)
 
       try {
@@ -221,49 +186,27 @@ export class P2PNetwork {
       clearInterval(this.discoveryTimer)
       this.discoveryTimer = null
     }
-
-    if (this.node) {
-      await this.node.stop()
-    }
+    if (this.node) await this.node.stop()
   }
 
   // We use this wait and then try again until the relay address is free for us to use
   async waitForRelayAddress() {
-    const maxRetries = 3
-    const baseDelay = 1000
-    let retries = 0
-
-    while (retries < maxRetries) {
-      const deadline = Date.now() + RELAY_ADDR_TIMEOUT_MS
-
-      while (Date.now() < deadline) {
-        const relayAddrs = this.getListenAddrs().filter(addr => addr.includes('/p2p-circuit'))
-        if (relayAddrs.length > 0) {
-          return relayAddrs
-        }
-
-        await delay(250)
-      }
-
-      retries++
-      if (retries < maxRetries) {
-        const backoffDelay = baseDelay * Math.pow(2, retries - 1)
-        console.warn(`Relay address attempt ${retries} failed, retrying in ${backoffDelay}ms...`)
-        await delay(backoffDelay)
-      }
+    const deadline = Date.now() + RELAY_ADDR_TIMEOUT_MS
+    while (Date.now() < deadline) {
+      const relayAddrs = this.getListenAddrs().filter(a => a.includes('/p2p-circuit'))
+      if (relayAddrs.length > 0) return relayAddrs
+      await delay(250)
     }
-
     console.warn('Timed out waiting for a relay address after retries (Safe to ignore for local testing)')
     return []
   }
 
-
   // We know that in the p2p system we need the bootstrap to act on keeping a record of the node so we use this
-  // to keep the register of the peer so that it can get found 
+  // to keep the register of the peer so that it can get found
   async registerWithBootstrap() {
     if (!this.bootstrapAddr) return
 
-    const myAddrs = this.getListenAddrs().filter(addr => addr.includes('/p2p-circuit'))
+    const myAddrs = this.getListenAddrs().filter(a => a.includes('/p2p-circuit'))
     if (myAddrs.length === 0) return
 
     const request = {
@@ -274,11 +217,8 @@ export class P2PNetwork {
 
     let stream
     try {
-      stream = await this.node.dialProtocol(
-        multiaddr(this.bootstrapAddr),
-        DISCOVERY_PROTOCOL
-      )
-    } catch (err) {
+      stream = await this.node.dialProtocol(multiaddr(this.bootstrapAddr), DISCOVERY_PROTOCOL)
+    } catch {
       return
     }
 
@@ -287,7 +227,7 @@ export class P2PNetwork {
       await channel.write(encodeJson(request))
       await channel.read()
       await stream.close()
-    } catch (err) {
+    } catch {
       try { await stream.close() } catch (_) {}
     }
   }
@@ -297,8 +237,7 @@ export class P2PNetwork {
   async refreshPeers() {
     if (!this.bootstrapAddr) return
 
-    const myAddrs = this.getListenAddrs().filter(addr => addr.includes('/p2p-circuit'))
-
+    const myAddrs = this.getListenAddrs().filter(a => a.includes('/p2p-circuit'))
     const request = {
       type: 'register',
       peerId: this.getPeerId(),
@@ -307,42 +246,32 @@ export class P2PNetwork {
 
     let stream
     try {
-      stream = await this.node.dialProtocol(
-        multiaddr(this.bootstrapAddr),
-        DISCOVERY_PROTOCOL
-      )
-    } catch (err) {
+      stream = await this.node.dialProtocol(multiaddr(this.bootstrapAddr), DISCOVERY_PROTOCOL)
+    } catch {
       return
     }
 
     const channel = lpStream(stream)
-
     try {
       await channel.write(encodeJson(request))
 
       const responseChunk = await channel.read()
       await stream.close()
 
-      if (responseChunk == null) {
-        return
-      }
+      if (responseChunk == null) return
 
       const response = decodeChunk(responseChunk)
 
       const actuallyConnected = new Set(
-        (this.node.getConnections?.() ?? []).map(c => c.remotePeer.toString())
+        this.node.getConnections().map(c => c.remotePeer.toString())
       )
 
-      for (const pid of Array.from(this.connectedPeers)) {
-        if (!actuallyConnected.has(pid)) {
-          this.connectedPeers.delete(pid)
-        }
+      for (const pid of this.connectedPeers) {
+        if (!actuallyConnected.has(pid)) this.connectedPeers.delete(pid)
       }
 
       for (const peer of response.peers ?? []) {
-        if (peer.peerId === this.getPeerId() || peer.peerId === this.bootstrapPeerId) {
-          continue
-        }
+        if (peer.peerId === this.getPeerId() || peer.peerId === this.bootstrapPeerId) continue
 
         this.knownPeers.set(peer.peerId, peer)
 
@@ -351,17 +280,15 @@ export class P2PNetwork {
           continue
         }
 
-        if (peer.addresses.length > 0) {
-          for (const addr of peer.addresses) {
-            try {
-              await this.node.dial(multiaddr(addr))
-              break
-            } catch (err) {
-            }
+        for (const addr of peer.addresses) {
+          try {
+            await this.node.dial(multiaddr(addr))
+            break
+          } catch {
           }
         }
       }
-    } catch (err) {
+    } catch {
       try { await stream.close() } catch (_) {}
     }
   }

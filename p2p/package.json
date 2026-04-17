@@ -8,7 +8,11 @@
   },
   "scripts": {
     "bootstrap": "node src/bootstrap.js",
-    "peer": "node src/peer.js"
+    "peer": "node src/peer.js",
+    "eval1": "node eval/eval1_matching.js",
+    "eval2": "node eval/eval2_propagation.js",
+    "eval3": "node eval/eval3_dm_latency.js",
+    "eval4": "node eval/eval4_discovery.js"
   },
   "dependencies": {
     "@chainsafe/libp2p-noise": "^17.0.0",
