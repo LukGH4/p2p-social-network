@@ -1,10 +1,12 @@
 import { signPayload, verifyPayload } from './crypto'
 import { getKeypair, getVouches, saveVouch } from './db'
 
+// We use this function to make an id for the vouch by using the voucher peer id and the subject peer id
 export function getVouchId(voucherPeerId, subjectPeerId) {
   return `${voucherPeerId}:${subjectPeerId}`
 }
 
+// We make a json stirng out of the vouch object while it is still not yet signed
 function serializePayload(unsigned) {
   const sorted = Object.fromEntries(
     Object.entries(unsigned).sort(([a], [b]) => a.localeCompare(b))
@@ -12,6 +14,7 @@ function serializePayload(unsigned) {
   return JSON.stringify(sorted)
 }
 
+// Here we finally make the peer vouch and then we get the keypair and we make the signature and sign the vouch
 export async function createPeerVouch({ voucherProfile, subjectPeerId, note = '' }) {
   const keypair = await getKeypair()
   if (!keypair?.privateKey) {
@@ -37,6 +40,8 @@ export async function createPeerVouch({ voucherProfile, subjectPeerId, note = ''
   return vouch
 }
 
+
+// We check that the peer is not malformed and that a different peer is correctly signed
 export async function verifyPeerVouch(vouch, getProfileByPeerId) {
   if (!vouch?.voucherPeerId || !vouch?.subjectPeerId || !vouch?.voucherPublicKey || !vouch?.signature) {
     return { valid: false, reason: 'Malformed trust vouch.' }
@@ -72,6 +77,7 @@ export async function loadStoredVouches() {
   return getVouches()
 }
 
+// By using the vouches that we have saved we are able to get a trust score fort the peer
 export function buildPeerTrust(profile, vouches) {
   const trustedVouches = Array.isArray(vouches) ? vouches : []
   let score = 0

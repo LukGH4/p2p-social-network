@@ -38,6 +38,7 @@ function getPeerIdFromEvent(event) {
   return typeof peer?.toString === 'function' ? peer.toString() : null
 }
 
+// We are making this class for the p2p network so we can handle each node on the network using the same variables
 export class P2PNetwork {
   constructor({ bootstrapAddr } = {}) {
     this.bootstrapAddr = bootstrapAddr
@@ -50,6 +51,7 @@ export class P2PNetwork {
     this.discoveryTimer = null
   }
 
+  // We use this to start up our node on the network so that we can connect it to our bootstrap node and find the peers
   async start() {
     this.node = await createLibp2p({
       addresses: {
@@ -73,6 +75,7 @@ export class P2PNetwork {
       }
     })
 
+    // Here we want to get the messages that are coming in and then hand them over to the listeners that are awaiting
     this.node.handle(
       RAW_PROTOCOL,
       async (stream, connection) => {
@@ -99,6 +102,8 @@ export class P2PNetwork {
     this.node.addEventListener('peer:connect', evt => {
       const peerId = getPeerIdFromEvent(evt)
       if (peerId && peerId !== this.bootstrapPeerId) {
+
+        // We are keeping track of all of the peers which we are adding and the ones that we are removing
         this.connectedPeers.add(peerId)
         for (const cb of this.peerConnectHandlers) cb(peerId)
 
@@ -185,6 +190,7 @@ export class P2PNetwork {
     }
   }
 
+  // We are going to send the entire message to each of the peers which are connected this way we wont have any duplications
   async sendToNetwork(payload) {
     const connections = this.node.getConnections?.() ?? []
     const sent = new Set()
@@ -221,6 +227,7 @@ export class P2PNetwork {
     }
   }
 
+  // We use this wait and then try again until the relay address is free for us to use
   async waitForRelayAddress() {
     const maxRetries = 3
     const baseDelay = 1000
@@ -250,6 +257,9 @@ export class P2PNetwork {
     return []
   }
 
+
+  // We know that in the p2p system we need the bootstrap to act on keeping a record of the node so we use this
+  // to keep the register of the peer so that it can get found 
   async registerWithBootstrap() {
     if (!this.bootstrapAddr) return
 
@@ -282,6 +292,8 @@ export class P2PNetwork {
     }
   }
 
+  // We are refreshing the peers so basically we are getting the list of the peers and updating it and then
+  // connecting to all of the peers that are new
   async refreshPeers() {
     if (!this.bootstrapAddr) return
 
@@ -321,7 +333,6 @@ export class P2PNetwork {
         (this.node.getConnections?.() ?? []).map(c => c.remotePeer.toString())
       )
 
-      // Sync connectedPeers with actual connections
       for (const pid of Array.from(this.connectedPeers)) {
         if (!actuallyConnected.has(pid)) {
           this.connectedPeers.delete(pid)
@@ -346,7 +357,6 @@ export class P2PNetwork {
               await this.node.dial(multiaddr(addr))
               break
             } catch (err) {
-              // Silently ignore NO_RESERVATION; other errors are non-fatal
             }
           }
         }

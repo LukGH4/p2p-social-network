@@ -1,8 +1,7 @@
-// ESM version of matching_algorithm/ for use in the browser.
-// Tag order and weights must stay in sync with matching_algorithm/vector.js.
-
+// We are setting these weights based on whuch of the categories are more important for our matching
 const WEIGHTS = { genre: 2.5, era: 1.5, rating: 1.0, runtime: 0.5, language: 1.5 }
 
+// We need to take care of the order of the tags for all the vectors to have the same exact structure
 const TAG_ORDER = {
   genre:    ['action','thriller','romance','scifi','horror','comedy','drama','documentary','animation','fantasy'],
   era:      ['pre_1980s','1980s','1990s','2000s','2010s','2020s'],
@@ -11,6 +10,7 @@ const TAG_ORDER = {
   language: ['english','spanish','french','korean','japanese','hindi','italian','german'],
 }
 
+// This is where we make the profile into a vector so we can compare profiles to each other
 function toVector(profile) {
   const vec = []
   for (const [cat, tags] of Object.entries(TAG_ORDER)) {
@@ -21,6 +21,7 @@ function toVector(profile) {
   return vec
 }
 
+// We use the cosine similarity to check how similar two vectors are to each other
 function cosine(a, b) {
   let dot = 0, magA = 0, magB = 0
   for (let i = 0; i < a.length; i++) {
@@ -33,11 +34,11 @@ function cosine(a, b) {
   return (magA === 0 || magB === 0) ? 0 : dot / (magA * magB)
 }
 
+
+// We get the matches by making our profile into the vector and then finding the similarity to all of the other peers
 export function getMatches(myProfile, peers) {
   const myVec = toVector(myProfile)
   return peers
-    // Include every discovered peer (missing tags → zero vector), so connection
-    // requests always surface a card with Accept / Decline / Chat actions.
     .filter(p => p.peerId !== myProfile.peerId)
     .map(p => {
       const trust = p.trust ?? {
