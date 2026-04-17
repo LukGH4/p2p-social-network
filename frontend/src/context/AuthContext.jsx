@@ -5,6 +5,8 @@ import { usePrivy } from '@privy-io/react-auth'
 import { getProfile, saveProfile, deleteProfile, deleteKeypair } from '../lib/db'
 import { initGossipNetwork, broadcastProfile, broadcastDeletion, teardownGossipNetwork } from '../lib/gossipBridge'
  
+// For now we create the auth context by passing in null to create context but this auth context
+// will be used to save and then send out the user with the state for the auth
 const AuthContext = createContext(null)
  
 export function AuthProvider({ children }) {
@@ -13,18 +15,19 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [privyAuthenticated, setPrivyAuthenticated] = useState(false)
  
-  // Track Privy authentication status
+
+  // The reason we do this is that we need to first check that the user is properly authenticated 
   useEffect(() => {
     if (privyReady) {
       setPrivyAuthenticated(authenticated)
     }
   }, [privyReady, authenticated])
  
-  // Load profile on app startup and when Privy is ready
+
   useEffect(() => {
     ;(async () => {
       if (!privyReady) {
-        return // Wait for Privy to be ready
+        return 
       }
  
       const profile = await getProfile()
@@ -33,7 +36,6 @@ export function AuthProvider({ children }) {
         try {
           await initGossipNetwork(profile)
         } catch (err) {
-          // Network error — user can still use the app, just no discovery
           console.error('[auth] network init failed on load:', err.message)
         }
       } else {
@@ -43,6 +45,9 @@ export function AuthProvider({ children }) {
     })()
   }, [privyReady, authenticated])
  
+
+  // This is the main login function which we use to save the profile and then do the network connection with the 
+  // profile being broadcasted properly
   async function login(profile) {
     await saveProfile(profile)
     setUser(profile)
@@ -54,6 +59,8 @@ export function AuthProvider({ children }) {
     }
   }
  
+  // This is hte main logout function which will first broadcast that the peer is being deleted and we delete all the date
+  // we have a lot of error catching here to check for any log out failures
   async function logout() {
     try {
       await broadcastDeletion()
@@ -76,7 +83,6 @@ export function AuthProvider({ children }) {
  
     setUser(null)
  
-    // Call Privy logout to clear the session
     try {
       await privyLogout()
     } catch (err) {
@@ -84,6 +90,7 @@ export function AuthProvider({ children }) {
     }
   }
  
+  // We use this to give the auth context which is the user the auth state nd the functions to the components
   return (
     <AuthContext.Provider
       value={{

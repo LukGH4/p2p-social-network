@@ -1,5 +1,6 @@
-// Movie interest schema — tag keys must match matching_algorithm/vector.js exactly
 
+// We make the interest schema so that we have a standard version of each of the categories
+// that we can use to get the matching scores
 export const INTEREST_SCHEMA = {
   genre: {
     label: 'Genre',
@@ -61,13 +62,13 @@ export const INTEREST_SCHEMA = {
   },
 }
 
-// Returns an empty { genre: [], era: [], ... } map
+
+// We use this simple function to basically just make an empty tag for the new users
 export function emptyTags() {
   return Object.fromEntries(Object.keys(INTEREST_SCHEMA).map(c => [c, []]))
 }
 
-// Converts { genre: ['action', 'scifi'], era: ['2010s'], ... }
-// to the format getMatches() expects: { genre: { action: 1, scifi: 1 }, ... }
+// We change the tag into the proper user profile which we need to do for the matching properly
 export function tagsToProfile(selected) {
   const result = {}
   for (const category of Object.keys(INTEREST_SCHEMA)) {
@@ -79,7 +80,7 @@ export function tagsToProfile(selected) {
   return result
 }
 
-// Reverse of tagsToProfile — used when loading a saved profile for editing
+// This is to convert the profile back into the tags which we need for the selections
 export function profileToTags(profileTags) {
   const result = {}
   for (const category of Object.keys(INTEREST_SCHEMA)) {
