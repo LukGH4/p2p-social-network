@@ -80,17 +80,13 @@ export class P2PNetwork {
         const channel = lpStream(stream)
         try {
           const chunk = await channel.read()
-          if (chunk == null) {
-            console.log('[p2p] RAW from', from.slice(-6), 'null chunk')
-            return
-          }
+          if (chunk == null) return
           const payload = decodeChunk(chunk)
-          console.log('[p2p] RAW received type:', payload?.type, 'from:', from.slice(-6))
           for (const callback of this.messageHandlers) {
             callback(payload, from)
           }
         } catch (err) {
-          console.warn('[p2p] RAW handler error from', from.slice(-6), ':', err.message)
+          // stream errors are non-fatal
         }
       },
       {
@@ -100,11 +96,10 @@ export class P2PNetwork {
 
     this.node.addEventListener('peer:connect', evt => {
       const peerId = getPeerIdFromEvent(evt)
-      console.log('[p2p] peer:connect event for', peerId?.slice(-6), 'bootstrap?', peerId === this.bootstrapPeerId)
       if (peerId && peerId !== this.bootstrapPeerId) {
         this.connectedPeers.add(peerId)
         for (const cb of this.peerConnectHandlers) cb(peerId)
-        
+
         const addrs = this.getListenAddrs()
         if (addrs.some(a => a.includes('/p2p-circuit'))) {
           this.registerWithBootstrap().catch(() => {})
@@ -114,14 +109,12 @@ export class P2PNetwork {
 
     this.node.addEventListener('peer:disconnect', evt => {
       const peerId = getPeerIdFromEvent(evt)
-      console.log('[p2p] peer:disconnect event for', peerId?.slice(-6))
       if (peerId) {
         this.connectedPeers.delete(peerId)
       }
     })
 
     await this.node.start()
-    console.log('[p2p] node started, peerId:', this.node.peerId.toString())
 
     if (!this.bootstrapAddr) {
       return
@@ -130,7 +123,6 @@ export class P2PNetwork {
     let connection
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        console.log('[p2p] connecting to bootstrap:', this.bootstrapAddr)
         connection = await this.node.dial(multiaddr(this.bootstrapAddr))
         break
       } catch (err) {
@@ -145,14 +137,8 @@ export class P2PNetwork {
 
     this.bootstrapPeerId = connection.remotePeer.toString()
     this.connectedPeers.delete(this.bootstrapPeerId)
-    console.log('[p2p] connected to bootstrap, peerId:', this.bootstrapPeerId)
 
-    const relayAddrs = await this.waitForRelayAddress()
-    console.log('[p2p] my relay addresses:', relayAddrs)
-
-    if (relayAddrs.length === 0) {
-      console.warn('[p2p] WARNING: no relay address - may not be reachable by other nodes!')
-    }
+    await this.waitForRelayAddress()
 
     for (let i = 0; i < 5; i++) {
       await delay(1500)
@@ -199,7 +185,6 @@ export class P2PNetwork {
 
   async sendToNetwork(payload) {
     const connections = this.node.getConnections?.() ?? []
-    const targets = []
     const sent = new Set()
 
     for (const conn of connections) {
@@ -207,18 +192,6 @@ export class P2PNetwork {
       if (peerId === this.bootstrapPeerId) continue
       if (sent.has(peerId)) continue
       sent.add(peerId)
-      targets.push(peerId)
-    }
-
-    console.log('[p2p] sendToNetwork type:', payload?.type, 'targets:', targets.map(p => p.slice(-6)))
-
-    for (const conn of connections) {
-      const peerId = conn.remotePeer.toString()
-      if (peerId === this.bootstrapPeerId) continue
-      if (!targets.includes(peerId)) continue
-      // remove to avoid double-send via multiple conns to same peer
-      const idx = targets.indexOf(peerId)
-      if (idx !== -1) targets.splice(idx, 1)
 
       try {
         const stream = await this.node.dialProtocol(
@@ -229,9 +202,8 @@ export class P2PNetwork {
         const channel = lpStream(stream)
         await channel.write(encodeJson(payload))
         await stream.close()
-        console.log('[p2p] sent', payload?.type, 'to', peerId.slice(-6), 'OK')
       } catch (err) {
-        console.error(`[p2p] FAILED to send ${payload?.type} to ${peerId.slice(-6)}:`, err.message)
+        console.error(`failed to send to ${peerId.slice(-6)}:`, err.message)
       }
     }
   }
@@ -370,12 +342,9 @@ export class P2PNetwork {
           for (const addr of peer.addresses) {
             try {
               await this.node.dial(multiaddr(addr))
-              console.log('[p2p] connected to', peer.peerId.slice(-6))
               break
             } catch (err) {
-              if (!err.message.includes('NO_RESERVATION')) {
-                console.warn('[p2p] dial failed', peer.peerId.slice(-6), ':', err.message)
-              }
+              // Silently ignore NO_RESERVATION; other errors are non-fatal
             }
           }
         }

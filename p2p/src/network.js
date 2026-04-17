@@ -123,12 +123,7 @@ export class P2PNetwork {
     this.bootstrapPeerId = connection.remotePeer.toString()
     this.connectedPeers.delete(this.bootstrapPeerId)
 
-    const relayAddrs = await this.waitForRelayAddress()
-    console.log('[p2p] my relay addresses:', relayAddrs)
-
-    if (relayAddrs.length === 0) {
-      console.warn('[p2p] WARNING: no relay address - may not be reachable by other nodes!')
-    }
+    await this.waitForRelayAddress()
 
     for (let i = 0; i < 5; i++) {
       await delay(1500)

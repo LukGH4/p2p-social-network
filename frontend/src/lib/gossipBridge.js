@@ -433,31 +433,24 @@ export async function initGossipNetwork(localProfile) {
 
     const profile = msg.profile
 
-    if (peerIdsEqual(profile.peerId, myProfile?.peerId)) {
-      console.log('[gossip] skipping own profile echo')
-      return
-    }
-    if (isProfileExpired(profile)) {
-      console.log('[gossip] profile expired from', profile.username, 'ts:', profile.timestamp)
-      return
-    }
+    if (peerIdsEqual(profile.peerId, myProfile?.peerId)) return
+    if (isProfileExpired(profile)) return
 
     const isValid = await verifyProfile(profile)
     if (!isValid) {
-      console.warn('[gossip] invalid signature from', from, 'profile:', profile.username)
+      console.warn('[gossip] invalid signature from', from)
       return
     }
 
     const cached = peersCache.get(profile.peerId)
     if (cached && cached.timestamp >= profile.timestamp) {
-      console.log('[gossip] already have newer profile for', profile.username)
       if (connectionState.get(profile.peerId) === 'sent') {
         resendPendingConnectionRequest(profile.peerId).catch(() => {})
       }
       return
     }
 
-    console.log('[gossip] received profile from', profile.username, 'peerId:', profile.peerId.slice(-6))
+    console.log('[gossip] received profile from', profile.username)
     peersCache.set(profile.peerId, profile)
     setStatus('connected', `Connected — ${peersCache.size} peer(s) found`)
     notifyProfileListeners()
