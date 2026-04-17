@@ -12,6 +12,7 @@ const STALE_PEER_MS = 30_000
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
+// We want to keep a registry so that we can keep a map of all of the peers that are active
 const registry = new Map()
 const connectedPeers = new Set()
 
@@ -23,6 +24,7 @@ function decodeChunk(chunk) {
   return JSON.parse(decoder.decode(chunk.subarray()))
 }
 
+// We want to be abel to remove / prune all of the peers that have been non active for too long
 function pruneRegistry() {
   const cutoff = Date.now() - STALE_PEER_MS
 
@@ -34,6 +36,7 @@ function pruneRegistry() {
   }
 }
 
+// We are using the create lib p2p function make our bootstrpa node
 const node = await createLibp2p({
   addresses: {
     listen: ['/ip4/0.0.0.0/tcp/4012/ws']
@@ -66,6 +69,7 @@ node.addEventListener('peer:connect', (evt) => {
   try {
     const remotePeer = evt?.detail?.remotePeer ?? evt?.detail
     if (remotePeer && typeof remotePeer.toString === 'function') {
+      // For our record wee are keeping track of all of the peers that we have connected 
       connectedPeers.add(remotePeer.toString())
     }
   } catch (err) {
@@ -84,6 +88,7 @@ node.addEventListener('peer:disconnect', (evt) => {
   }
 })
 
+// We are using handle to take care of when peers join so we can send out a list of the peers taht are available
 node.handle(DISCOVERY_PROTOCOL, async (stream) => {
   const channel = lpStream(stream)
   const requestChunk = await channel.read()
@@ -110,6 +115,9 @@ node.handle(DISCOVERY_PROTOCOL, async (stream) => {
     addresses,
     connected: connectedPeers.has(peerId)
   }))
+
+
+  // Sending out the list of the peers
 
   await channel.write(encodeJson({ peers }))
   await stream.close()

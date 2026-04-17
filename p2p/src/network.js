@@ -50,6 +50,7 @@ export class P2PNetwork {
   }
 
   async start() {
+    // We are calling the function to make the lib p2p node
     this.node = await createLibp2p({
       addresses: {
         listen: ['/p2p-circuit']
@@ -72,6 +73,7 @@ export class P2PNetwork {
       }
     })
 
+    // When we receive messages we hanle by moving to the handlers
     this.node.handle(
       RAW_PROTOCOL,
       async (stream, connection) => {
@@ -97,6 +99,7 @@ export class P2PNetwork {
     this.node.addEventListener('peer:connect', evt => {
       const peerId = getPeerIdFromEvent(evt)
       if (peerId && peerId !== this.bootstrapPeerId) {
+        // We are still keeping track of all of the connected peers by using tje peer ID
         this.connectedPeers.add(peerId)
         
         const addrs = this.getListenAddrs()
@@ -130,6 +133,7 @@ export class P2PNetwork {
       await this.refreshPeers()
     }
 
+    // We use this timer to keep updating the peers at a regular freq
     this.discoveryTimer = setInterval(() => {
       this.refreshPeers().catch(err => {
         console.error('peer discovery refresh failed:', err.message)
@@ -265,6 +269,8 @@ export class P2PNetwork {
 
     let stream
     try {
+
+      // Here we are sending the message to all of the peers we are connected to
       stream = await this.node.dialProtocol(
         multiaddr(this.bootstrapAddr),
         DISCOVERY_PROTOCOL
@@ -292,6 +298,7 @@ export class P2PNetwork {
           continue
         }
 
+        // This is used to connect and then keep a saved record of the peers
         this.knownPeers.set(peer.peerId, peer)
 
         if (this.connectedPeers.has(peer.peerId)) {
