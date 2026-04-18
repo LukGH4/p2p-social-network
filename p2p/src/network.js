@@ -32,7 +32,7 @@ function delay(ms) {
 }
 
 export class P2PNetwork {
-  constructor({ bootstrapAddr } = {}) {
+  constructor({ bootstrapAddr, noMesh = false, silent = false, dialRetries = 4 } = {}) {
     this.bootstrapAddr = bootstrapAddr
     this.bootstrapPeerId = null
     this.node = null
@@ -41,6 +41,9 @@ export class P2PNetwork {
     this.messageHandlers = []
     this.discoveryTimer = null
     this.id = Math.random().toString(36).slice(2, 8)
+    this.noMesh = noMesh
+    this.silent = silent
+    this.dialRetries = dialRetries
   }
 
   async start() {
@@ -103,15 +106,30 @@ export class P2PNetwork {
 
     if (!this.bootstrapAddr) return
 
-    const connection = await this.node.dial(multiaddr(this.bootstrapAddr))
+    let connection = null
+    let lastErr = null
+    for (let attempt = 0; attempt <= this.dialRetries; attempt++) {
+      try {
+        connection = await this.node.dial(multiaddr(this.bootstrapAddr))
+        break
+      } catch (err) {
+        lastErr = err
+        await delay(500 + Math.floor(Math.random() * 1500) + attempt * 750)
+      }
+    }
+    if (!connection) throw lastErr ?? new Error('bootstrap dial failed')
+
     this.bootstrapPeerId = connection.remotePeer.toString()
     this.connectedPeers.delete(this.bootstrapPeerId)
     mark('peer:bootstrap-connected', { id: this.id })
 
-    await this.waitForRelayAddress()
-    mark('peer:relay-ready', { id: this.id })
+    if (!this.noMesh) {
+      await this.waitForRelayAddress()
+      mark('peer:relay-ready', { id: this.id })
+    }
 
-    for (let i = 0; i < 5; i++) {
+    const warmupRefreshes = this.noMesh ? 1 : 5
+    for (let i = 0; i < warmupRefreshes; i++) {
       await delay(1500)
       await this.refreshPeers()
     }
@@ -121,7 +139,7 @@ export class P2PNetwork {
     // We use this timer to keep updating the peers at a regular freq
     this.discoveryTimer = setInterval(() => {
       this.refreshPeers().catch(err => {
-        console.error('peer discovery refresh failed:', err.message)
+        if (!this.silent) console.error('peer discovery refresh failed:', err.message)
       })
     }, DISCOVERY_INTERVAL_MS)
   }
@@ -231,12 +249,14 @@ export class P2PNetwork {
 
         if (this.connectedPeers.has(peer.peerId)) continue
 
+        if (this.noMesh) continue
+
         if (peer.addresses.length > 0) {
           try {
             await this.node.dial(multiaddr(peer.addresses[0]))
           } catch (err) {
             if (!err.message.includes('NO_RESERVATION')) {
-              console.error(`failed to connect to ${peer.peerId}:`, err.message)
+              if (!this.silent) console.error(`failed to connect to ${peer.peerId}:`, err.message)
             }
           }
         }

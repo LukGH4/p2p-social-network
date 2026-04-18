@@ -1,3 +1,4 @@
+import { createServer } from 'http'
 import { noise } from '@chainsafe/libp2p-noise'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { circuitRelayServer } from '@libp2p/circuit-relay-v2'
@@ -8,6 +9,7 @@ import { createLibp2p } from 'libp2p'
 import { DISCOVERY_PROTOCOL } from './network.js'
 
 const STALE_PEER_MS = 30_000
+const STATS_PORT = Number(process.env.STATS_PORT ?? 4013)
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -105,6 +107,40 @@ node.handle(DISCOVERY_PROTOCOL, async (stream) => {
 })
 
 await node.start()
+
+function statsJson() {
+  pruneRegistry()
+  const now = Date.now()
+  const peers = Array.from(registry.values()).map(({ peerId, addresses, lastSeen }) => ({
+    peerId,
+    addresses,
+    lastSeen,
+    connected: connectedPeers.has(peerId),
+    staleInMs: Math.max(0, STALE_PEER_MS - (now - lastSeen))
+  }))
+  return JSON.stringify({
+    bootstrapPeerId: node.peerId.toString(),
+    registrySize: registry.size,
+    connectedCount: connectedPeers.size,
+    stalePeerWindowMs: STALE_PEER_MS,
+    timestamp: now,
+    peers
+  })
+}
+
+createServer((req, res) => {
+  if (req.url === '/stats' || req.url?.startsWith('/stats?')) {
+    res.writeHead(200, {
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*'
+    })
+    res.end(statsJson())
+    return
+  }
+  res.writeHead(404).end('not found')
+}).listen(STATS_PORT, '0.0.0.0', () => {
+  console.log(`Stats: http://0.0.0.0:${STATS_PORT}/stats`)
+})
 
 console.log('BOOTSTRAP NODE STARTED')
 console.log('Peer ID:', node.peerId.toString())
