@@ -1,104 +1,189 @@
 # cs4675-findyourpeer
 
-## Matching Algorithm (Ved Srivathsa)
+Browser app: sign a film-taste profile, join a [libp2p](https://libp2p.io/) network over WebSockets (via a bootstrap node), gossip signed profiles and vouches, rank peers, and DM. Stack is React + Vite in `frontend/`, relay/bootstrap in `p2p/`, and a standalone Node matcher in `matching_algorithm/`.
 
-### Files:
+**Repo:** [https://github.gatech.edu/jmanglik3/cs4675-findyourpeer](https://github.gatech.edu/jmanglik3/cs4675-findyourpeer)
 
-- `vector.js`: Schema definition and the profile to vector conversion implementation
-- `similarity.js`: Cosine similarity math implementations
-- `matching.js`: Includes the getMatches function to retrieve the matches
-- `matching.test.js`: Includes unit tests to ensure proper functionality of the matching algorithm
+## What’s where
 
-### Usage:
+- `**frontend/`** — React app, Privy auth, IndexedDB, libp2p (`network.js`, `gossipBridge.js`), signing (`profile.js`, `crypto.js`, `db.js`), trust (`trust.js`), UI. Routes in `App.jsx`: `/login`, `/account-setup`, `/profile/create`, `/feed`, `/chat/:peerId`.
+- `**p2p/**` — `bootstrap.js`, `network.js`, `peer.js`, `simProfile.js`, scripts under `eval/`. Use **Node 22+** here (`p2p/package.json` `engines`).
+- `**matching_algorithm/`** — Node modules for vector + cosine + `getMatches` + Jest tests (wired from the **repo root** `package.json`).
+- **Root** — `npm test` runs Jest on `matching_algorithm/matching.test.js`.
 
-- Import the `getMatches` function from `matching.js` and pass your profile and array of peer profiles as an argument
-- Returns list of peers from highest to lowest match score (contain peer ID, username, match score)
+## Env
 
-### Profile: 
+Put real values in `**frontend/.env.local`** (restart Vite after edits):
 
-Profile objects have the following format:
-
-```js
-{
-    peerId: 'peerIdValue',
-    username: 'peerUsername',
-    tags: {
-        genre: {scifi: 1, action: 1},
-        era: {'2010s': 1},
-        rating: {R: 1}
-        runtime: {'90_to_120_min': 1},
-        language: {english: 1}
-    }
-}
+```
+VITE_PRIVY_APP_ID=<Privy dashboard>
+VITE_BOOTSTRAP_ADDR=/ip4/127.0.0.1/tcp/4012/ws
 ```
 
-### Running Tests:
+If you omit `**VITE_BOOTSTRAP_ADDR**`, the client falls back to `127.0.0.1:4012` (`gossipBridge.js`).
 
-- cd into the matching algorithm folder
-- Run `npm install`
-- Run `npm test`
+## Run locally
 
----
+1. One machine runs the relay (**TCP 4012** for WS):
+  ```bash
+   cd p2p && npm install && npm run bootstrap
+  ```
+   Keep the websocket multiaddr from the log if you’ll paste it into env.
+2. Another terminal, the SPA:
+  ```bash
+   cd frontend && npm install && npm run dev
+  ```
+   Hit the URL Vite prints (often `http://localhost:5173`), sign in, finish onboarding; `**/feed**` is matches, `**/chat/:peerId**` DMs.
 
-## Identity & Profile Management (Anvesha Mongia)
+## Multi-laptop demo
 
-### Overview
+Use **one laptop only** as the bootstrap: run `**npm run bootstrap`** there and grab its websocket multiaddr (`/ip4/<that-machine’s-LAN-ip>/tcp/4012/ws/…`).
 
-Handles profile creation, keypair-based identity, local storage, and profile signing/verification. Produces a `SignedProfile` that is handed off to the gossip layer (Part 3) for broadcast.
+On **every client machine** that should join that swarm, edit `**frontend/.env.local`** and set `VITE_BOOTSTRAP_ADDR` to that multiaddr, that’s all you change. Restart `npm run dev`. 
+
+Machines must reach that host/port on the LAN (or however you routed it).
+
+## Matching algorithm
+
+Code lives under `**matching_algorithm/**` (standalone Node path). In the SPA the same cosine idea (+ category weights + trust blending) ships in `**frontend/src/lib/matchingBridge.js**`; keep weights and tag ordering in sync with `**vector.js**`.
 
 ### Files
 
-- `frontend/src/lib/profile.js` — core profile API: `createProfile`, `signProfile`, `verifyProfile`, `isProfileExpired`, `getStoredProfile`
-- `frontend/src/lib/crypto.js` — Web Crypto API wrappers: keypair generation, signing, verification (ECDSA P-256, no external libraries)
-- `frontend/src/lib/db.js` — IndexedDB storage via `idb`: profile store and keypair store
 
-### Profile Format
+| File               | Role                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| `vector.js`        | Tag order per category, multiply by weights, concatenate into one vector (“schema + profile → vector”). |
+| `similarity.js`    | Cosine similarity between vectors.                                                                      |
+| `matching.js`      | `**getMatches(myProfile, arrayOfPeerProfiles)**` — filters invalid/self, scores rest, sorts high → low. |
+| `matching.test.js` | Jest tests.                                                                                             |
 
-All profiles on the network are `SignedProfile` objects:
+
+### Usage
+
+```js
+const { getMatches } = require('./matching.js');
+// returns [{ peerId, username, score }, ...] best first (score = cosine similarity)
+```
+
+### Profile shape (`matching_algorithm/`)
+
+Peers need `**peerId**`, `**username**`, `**tags**` (nested by category). Untagged dims behave as zeros when building vectors.
 
 ```js
 {
-  peerId: 'string',          // assigned by libp2p (Part 1)
+  peerId: 'peerIdValue',
+  username: 'peerUsername',
+  tags: {
+    genre: { scifi: 1, action: 1 },
+    era: { '2010s': 1 },
+    rating: { R: 1 },
+    runtime: { '90_to_120_min': 1 },
+    language: { english: 1 }
+  }
+}
+```
+
+### Running tests
+
+From the **repository root** (Jest picks up `**matching_algorithm/`**):
+
+```bash
+npm install
+npm test
+```
+
+There isn’t a separate `package.json` inside `**matching_algorithm/**`; dependencies for tests resolve from the root.
+
+## Identity & profile management (Anvesha Mongia)
+
+Creates and signs profiles locally, persists keys/metadata in IndexedDB, and hands `**SignedProfile**` objects to `**gossipBridge.js**` so they can fan out.
+
+### Files
+
+
+| File                          | What it does                                                                                                      |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `frontend/src/lib/profile.js` | `**createProfile**`, `**signProfile**`, `**verifyProfile**`, `**isProfileExpired**`, `**getStoredProfile**`, etc. |
+| `frontend/src/lib/crypto.js`  | Web Crypto (ECDSA P-256 keygen, sign, verify)—no JS crypto libs besides the browser API.                          |
+| `frontend/src/lib/db.js`      | IndexedDB via **idb**: keypairs + profiles.                                                                       |
+
+
+### `SignedProfile` shape (network)
+
+```js
+{
+  peerId: 'string',
   username: 'string',
   bio: 'string',
-  tags: {                    // nested by category — omitted tags default to 0
+  tags: {
     genre:    { scifi: 1, action: 0.5 },
     era:      { '2010s': 1 },
     rating:   { R: 1 },
     runtime:  { '90_to_120_min': 1 },
     language: { english: 1 }
   },
-  publicKey: 'base64',       // ECDSA P-256 public key (SPKI format)
-  signature: 'base64',       // signs everything except this field
-  timestamp: 1712345678000,  // unix ms — set at broadcast time
-  ttl: 3600000               // ms — 1 hour default
+  publicKey: 'base64-spki',
+  signature: 'base64',
+  timestamp: 1712345678000,
+  ttl: 3600000
 }
 ```
 
-### How It Works
+(libp2p assigns `**peerId**`; omitted tags behave as unrated/zero where applicable.)
 
-1. On first profile creation, an ECDSA P-256 keypair is generated via `window.crypto.subtle` and stored in IndexedDB. The private key is non-extractable — it never leaves the browser.
-2. The public key is embedded in the profile as a base64 string so peers can verify signatures without any central authority.
-3. The profile payload (all fields except `signature`) is serialized with sorted keys for determinism, then signed with the private key.
-4. Any peer receiving a profile can call `verifyProfile` to confirm it was signed by the holder of the matching private key.
-5. `isProfileExpired` checks `Date.now() > timestamp + ttl` — Part 3 uses this to decide whether to cache or drop an incoming profile.
+### How it behaves
 
-### Authentication
+First profile creation generates an ECDSA P-256 pair with `**crypto.subtle**`, keeps the **private key non-extractable** in IndexedDB, and embeds the **public key** so peers verify without a central registrar.
 
-- Integrated [Privy](https://privy.io) for user authentication (email, SMS, Google, Apple, and more).
-- Privy handles session management; no Ethereum wallets or ENS names are required.
-- Added a peer-vouching system where users can vouch for other peers instead of relying on a centralized identity authority.
-- Signed each vouch cryptographically and verified incoming vouches before accepting them.
-- Stored vouches locally in IndexedDB so trust state persists across refreshes.
-- Updated the gossip layer to propagate both signed profiles and signed trust vouches across the P2P network.
-- Rejected invalid or expired profiles.
-- Computed a trust score from verified peer vouches.
-- Blended trust score into match ranking so peers are ordered by both taste similarity and trust.
+Signing uses a deterministic JSON stringify (sorted keys) over everything except `**signature`**. Receiving peers call `**verifyProfile**`.
 
-### Running Locally
+`**isProfileExpired**` compares `**timestamp + ttl**` against `**Date.now()**`; gossip caches or drops stale payloads accordingly.
+
+Auth is **[Privy](https://privy.io/)** (email, OAuth, SMS, etc.), sessions only, no wallet requirement.
+
+On top of that there’s peer **vouching**: sign vouches, verify inbound ones, store them locally, gossip them beside profiles, reject bad/expired packets, derive a trust score, then **blend trust into rankings** (`**overallScore`** in `**matchingBridge.js**` is roughly `**0.85 × taste + 0.15 × trust**`—exact constants in code).
+
+Canonical tag lists: `**frontend/src/schema/interestSchema.js**`. Category weights (genre 2.5, era 1.5, rating 1.0, runtime 0.5, language 1.5) match `**vector.js**` / `**matchingBridge.js**`.
+
+## P2P benchmarks (`p2p/eval/`)
+
+Scripts live on the `evaluations` remote branch (named `eval`). Fetch and check out before running:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+git fetch origin
+git checkout evaluations
+cd p2p && npm install
 ```
+
+
+| Script                    | Runs                                                                          |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| `npm run bootstrap`       | Relay / bootstrap                                                             |
+| `npm run peer`            | `src/peer.js` — pass bootstrap multiaddr + name                               |
+| `npm run eval1` … `eval4` | `eval/eval1_matching.js` … `eval4_discovery.js`                               |
+| `npm run demo:100`        | `eval/demo_100_peers.js`                                                      |
+| `npm run demo:gossip`     | `eval/demo_gossip_100.js` — tune `**TOTAL**`, `**SEND_GAP_MS**`, etc. in file |
+
+
+Scripts that need a bootstrap multiaddr usually take `**process.argv[2]**`. `**eval1**` imports `**frontend/src/lib/matchingBridge.js**` so timings match production. `**eval/helpers.js**` has `**makeProfile**` and friends.
+
+You might see `**NO_RESERVATION**` relay noise on one box; peers often still connect.
+
+### `demo:100` + ngrok
+
+Local-only runs: point everything at `**127.0.0.1**` / LAN—**no tunnel**.
+
+`**ngrok tcp 4012`** is for when the bootstrap has to be dialed from **outside** your LAN (e.g. public multiaddr). Start `**npm run bootstrap`**, run `**ngrok tcp 4012**`, turn the forwarding line into a `**/dns4/.../tcp/.../ws**` multiaddr, then:
+
+```bash
+cd p2p && npm run demo:100 -- '/dns4/example.tcp.ngrok.io/tcp/12345/ws'
+```
+
+Optional **2nd** arg: stats URL (default `**http://127.0.0.1:4013/stats`**, `**STATS_PORT**` in `**bootstrap.js**`).
+
+## Lint
+
+```bash
+cd frontend && npm run lint
+```
+
