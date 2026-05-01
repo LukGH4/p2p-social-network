@@ -11,6 +11,25 @@ Browser app: sign a film-taste profile, join a [libp2p](https://libp2p.io/) netw
 - `**matching_algorithm/`** — Node modules for vector + cosine + `getMatches` + Jest tests (wired from the **repo root** `package.json`).
 - **Root** — `npm test` runs Jest on `matching_algorithm/matching.test.js`.
 
+## Environment setup
+
+You need **Node.js 22+**
+
+Install dependencies for each part of the repo before running any commands:
+
+```bash
+# root directory — needed for `npm test`
+npm install
+
+# p2p relay/bootstrap
+cd p2p && npm install
+
+# React frontend
+cd frontend && npm install
+```
+
+Each directory has its own `package.json` and `node_modules`; you must install in all three independently.
+
 ## Env
 
 Put real values in `**frontend/.env.local`** (restart Vite after edits):
