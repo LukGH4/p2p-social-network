@@ -12,7 +12,8 @@
     "eval1": "node eval/eval1_matching.js",
     "eval2": "node eval/eval2_propagation.js",
     "eval3": "node eval/eval3_dm_latency.js",
-    "eval4": "node eval/eval4_discovery.js"
+    "eval4": "node eval/eval4_discovery.js",
+    "eval5": "node eval/eval5_identity.js"
   },
   "dependencies": {
     "@chainsafe/libp2p-noise": "^17.0.0",
