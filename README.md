@@ -1,4 +1,4 @@
-# cs4675-findyourpeer
+# findyourpeer
 
 Browser app: sign a film-taste profile, join a [libp2p](https://libp2p.io/) network over WebSockets (via a bootstrap node), gossip signed profiles and vouches, rank peers, and DM. Stack is React + Vite in `frontend/`, relay/bootstrap in `p2p/`, and a standalone Node matcher in `matching_algorithm/`.
 
